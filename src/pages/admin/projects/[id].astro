@@ -1,0 +1,49 @@
+---
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import FlashMessage from '../../../components/admin/FlashMessage.astro';
+import ProjectForm from '../../../components/admin/ProjectForm.astro';
+import { parseProjectForm } from '../../../lib/project-form';
+import { backTo, zodMessage } from '../../../lib/form';
+import { projectAssetUrls, removeOrphanAssets } from '../../../lib/storage';
+
+const supabase = Astro.locals.supabase!;
+const { id } = Astro.params;
+
+if (!id) return Astro.rewrite('/404');
+
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  const parsed = parseProjectForm(form);
+
+  if (!parsed.success) {
+    return Astro.redirect(backTo(`/admin/projects/${id}`, { error: zodMessage(parsed.error) }), 303);
+  }
+
+  // Dibaca sebelum update supaya gambar yang dilepas bisa ikut dibersihkan.
+  const { data: before } = await supabase
+    .from('projects')
+    .select('image_url, gallery')
+    .eq('id', id)
+    .maybeSingle();
+
+  const { error } = await supabase.from('projects').update(parsed.data).eq('id', id);
+  if (error) {
+    const message = error.code === '23505' ? `Slug "${parsed.data.slug}" sudah dipakai proyek lain.` : error.message;
+    return Astro.redirect(backTo(`/admin/projects/${id}`, { error: message }), 303);
+  }
+
+  if (before) {
+    await removeOrphanAssets(supabase, projectAssetUrls(before), projectAssetUrls(parsed.data));
+  }
+
+  return Astro.redirect(backTo('/admin/projects', { ok: `Proyek "${parsed.data.title}" diperbarui.` }), 303);
+}
+
+const { data: project } = await supabase.from('projects').select('*').eq('id', id).maybeSingle();
+if (!project) return Astro.rewrite('/404');
+---
+
+<AdminLayout title={`Edit: ${project.title}`} description={`Halaman publik: /projects/${project.slug}`}>
+  <FlashMessage />
+  <ProjectForm project={project} submitLabel="Simpan perubahan" />
+</AdminLayout>

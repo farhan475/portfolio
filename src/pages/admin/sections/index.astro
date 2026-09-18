@@ -1,0 +1,46 @@
+---
+import { Plus } from 'lucide-react';
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import FlashMessage from '../../../components/admin/FlashMessage.astro';
+import SortableList from '../../../components/admin/SortableList.tsx';
+import { getAllSections } from '../../../lib/queries';
+import { buttonPrimary } from '../../../lib/ui';
+
+const supabase = Astro.locals.supabase!;
+const sections = await getAllSections(supabase);
+
+const entries = sections.map((section) => ({
+  id: section.id,
+  title: section.title ?? section.key,
+  subtitle: `${section.type} · #${section.key}`,
+  href: `/admin/sections/${section.id}`,
+  enabled: section.is_visible,
+}));
+---
+
+<AdminLayout
+  title="Section"
+  description="Atur urutan blok halaman utama dan tentukan mana yang tampil."
+>
+  <FlashMessage />
+
+  <div class="mb-6">
+    <a href="/admin/sections/new" class:list={[buttonPrimary, 'inline-flex items-center gap-1.5']}>
+      <Plus size={16} aria-hidden="true" />
+      Tambah section
+    </a>
+  </div>
+
+  <SortableList
+    client:load
+    items={entries}
+    table="sections"
+    toggle={{ field: 'is_visible', labelOn: 'Tampil', labelOff: 'Disembunyikan' }}
+    deletable
+    emptyText="Belum ada section. Tambahkan lewat tombol di atas, atau jalankan supabase/schema-portfolio.sql untuk data awal."
+  />
+
+  <p class="mt-6 text-sm text-muted">
+    Menghapus section tidak bisa dibatalkan. Kalau hanya ingin menyembunyikannya sementara, pakai tombol Tampil.
+  </p>
+</AdminLayout>

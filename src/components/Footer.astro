@@ -1,0 +1,39 @@
+---
+import Icon from './ui/Icon.astro';
+import type { SiteSettings, SocialLink } from '../lib/queries';
+
+interface Props {
+  settings: SiteSettings | null;
+  socialLinks: SocialLink[];
+}
+
+const { settings, socialLinks } = Astro.props;
+const footerText = settings?.footer_text ?? null;
+---
+
+<footer class="border-t border-border py-8 sm:py-10">
+  <div class="container-page flex flex-col items-center gap-5 sm:flex-row sm:justify-between sm:gap-6">
+    {footerText ? <p class="text-center text-sm text-muted sm:text-left">{footerText}</p> : <span />}
+
+    {
+      socialLinks.length > 0 ? (
+        <ul class="flex flex-wrap items-center justify-center gap-2">
+          {socialLinks.map((link) => (
+            <li>
+              <a
+                href={link.url}
+                target={link.url.startsWith('mailto:') ? undefined : '_blank'}
+                rel="noopener noreferrer"
+                class="inline-flex size-9 items-center justify-center rounded-md border border-border-strong text-muted transition-colors hover:border-primary hover:text-foreground"
+                aria-label={link.platform}
+                title={link.platform}
+              >
+                <Icon name={link.icon ?? link.platform} size={18} />
+              </a>
+            </li>
+          ))}
+        </ul>
+      ) : null
+    }
+  </div>
+</footer>

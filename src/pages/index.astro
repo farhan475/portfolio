@@ -1,0 +1,68 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Navbar from '../components/Navbar.astro';
+import Footer from '../components/Footer.astro';
+import SectionRenderer from '../components/SectionRenderer.astro';
+import {
+  getExperiences,
+  getProjects,
+  getSiteSettings,
+  getSkills,
+  getSocialLinks,
+  getVisibleSections,
+  type Experience,
+  type Project,
+  type Section,
+  type SiteSettings,
+  type SocialLink,
+  type Skill,
+} from '../lib/queries';
+
+Astro.response.headers.set('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300');
+
+let settings: SiteSettings | null = null;
+let sections: Section[] = [];
+let projects: Project[] = [];
+let skills: Skill[] = [];
+let experiences: Experience[] = [];
+let socialLinks: SocialLink[] = [];
+
+const supabase = Astro.locals.supabase;
+
+if (supabase) {
+  [settings, sections, projects, skills, experiences, socialLinks] = await Promise.all([
+    getSiteSettings(supabase),
+    getVisibleSections(supabase),
+    getProjects(supabase),
+    getSkills(supabase),
+    getExperiences(supabase),
+    getSocialLinks(supabase),
+  ]);
+}
+---
+
+<BaseLayout settings={settings}>
+  <Navbar settings={settings} />
+  <main id="konten">
+    {
+      sections.length === 0 ? (
+        <section class="container-page py-24">
+          <h1 class="text-3xl font-semibold">Belum ada section</h1>
+          <p class="mt-3 text-muted">
+            Tambahkan section lewat halaman admin, atau jalankan
+            <code class="rounded border border-border px-1">supabase/schema-portfolio.sql</code>
+            bila database masih kosong.
+          </p>
+        </section>
+      ) : (
+        <SectionRenderer
+          sections={sections}
+          skills={skills}
+          projects={projects}
+          experiences={experiences}
+        />
+      )
+    }
+  </main>
+  <Footer settings={settings} socialLinks={socialLinks} />
+</BaseLayout>

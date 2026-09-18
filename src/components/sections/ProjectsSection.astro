@@ -1,0 +1,109 @@
+---
+import SectionShell from './SectionShell.astro';
+import ProjectCard from '../ProjectCard.astro';
+import ProjectsCarousel from './ProjectsCarousel.astro';
+import { collectCategories, type Project } from '../../lib/queries';
+import type { ProjectsContent } from '../../lib/schemas';
+
+interface Props {
+  id: string;
+  title?: string | null;
+  subtitle?: string | null;
+  content: ProjectsContent;
+  projects: Project[];
+}
+
+const { id, title, subtitle, content, projects } = Astro.props;
+
+const filtered = content.featured_only ? projects.filter((project) => project.featured) : projects;
+const visible = filtered.slice(0, content.limit);
+const categories = collectCategories(visible);
+const showFilter = content.show_filter && categories.length > 1;
+---
+
+<SectionShell id={id} title={title} subtitle={subtitle}>
+  {
+    visible.length === 0 ? (
+      <p class="text-muted">Belum ada proyek yang ditampilkan.</p>
+    ) : (
+      <div data-projects-root>
+        {showFilter && (
+          <div class="mb-8 flex flex-wrap gap-2" role="group" aria-label="Filter kategori proyek">
+            <button
+              type="button"
+              data-filter=""
+              aria-pressed="true"
+              class="max-w-full rounded-md border border-primary px-3 py-2 text-sm text-foreground wrap-anywhere transition-colors"
+            >
+              Semua
+            </button>
+            {categories.map((category) => (
+              <button
+                type="button"
+                data-filter={category}
+                aria-pressed="false"
+                class="max-w-full rounded-md border border-border-strong px-3 py-2 text-sm text-muted wrap-anywhere transition-colors hover:border-primary hover:text-foreground"
+              >
+                {category}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {content.layout === 'carousel' ? (
+          <ProjectsCarousel projects={visible} />
+        ) : (
+          <ul class="grid gap-4 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3">
+            {visible.map((project) => (
+              <li class="min-w-0" data-category={project.category ?? ''}>
+                <ProjectCard project={project} />
+              </li>
+            ))}
+          </ul>
+        )}
+
+        <p class="sr-only" role="status" data-filter-status />
+      </div>
+    )
+  }
+</SectionShell>
+
+<script>
+  for (const root of document.querySelectorAll<HTMLElement>('[data-projects-root]')) {
+    const buttons = root.querySelectorAll<HTMLButtonElement>('[data-filter]');
+    // Selektor ini sengaja sama untuk grid maupun carousel: keduanya memakai
+    // li[data-category] sebagai pembungkus kartu.
+    const items = root.querySelectorAll<HTMLElement>('li[data-category]');
+    const status = root.querySelector<HTMLElement>('[data-filter-status]');
+    const carousel = root.querySelector<HTMLElement>('[data-carousel]');
+
+    for (const button of buttons) {
+      button.addEventListener('click', () => {
+        const active = button.dataset.filter ?? '';
+
+        for (const other of buttons) {
+          const isActive = other === button;
+          other.setAttribute('aria-pressed', String(isActive));
+          other.classList.toggle('border-primary', isActive);
+          other.classList.toggle('text-foreground', isActive);
+          other.classList.toggle('border-border-strong', !isActive);
+          other.classList.toggle('text-muted', !isActive);
+        }
+
+        let shown = 0;
+        for (const item of items) {
+          const matches = active === '' || item.dataset.category === active;
+          item.hidden = !matches;
+          if (matches) shown += 1;
+        }
+
+        if (status) {
+          status.textContent = `Menampilkan ${shown} proyek${active ? ` pada kategori ${active}` : ''}.`;
+        }
+
+        // Jumlah slide berubah, carousel perlu menghitung ulang halamannya.
+        carousel?.dispatchEvent(new CustomEvent('carousel:refresh'));
+      });
+    }
+  }
+</script>

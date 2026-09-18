@@ -1,0 +1,83 @@
+---
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import FlashMessage from '../../../components/admin/FlashMessage.astro';
+import Field from '../../../components/admin/Field.astro';
+import SortableList from '../../../components/admin/SortableList.tsx';
+import { getSkills } from '../../../lib/queries';
+import { skillFormSchema } from '../../../lib/schemas';
+import { backTo, formBool, formInt, formRequired, formText, zodMessage } from '../../../lib/form';
+import { buttonPrimary, checkboxClass, inputClass } from '../../../lib/ui';
+
+const supabase = Astro.locals.supabase!;
+
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  const parsed = skillFormSchema.safeParse({
+    name: formRequired(form, 'name'),
+    category: formText(form, 'category') ?? 'Lainnya',
+    icon: formText(form, 'icon'),
+    sort_order: formInt(form, 'sort_order', 0),
+    is_visible: formBool(form, 'is_visible'),
+  });
+
+  if (!parsed.success) {
+    return Astro.redirect(backTo('/admin/skills', { error: zodMessage(parsed.error) }), 303);
+  }
+
+  const { error } = await supabase.from('skills').insert(parsed.data);
+  return Astro.redirect(
+    backTo('/admin/skills', error ? { error: error.message } : { ok: `Keahlian "${parsed.data.name}" ditambahkan.` }),
+    303,
+  );
+}
+
+const skills = await getSkills(supabase, { includeHidden: true });
+
+const entries = skills.map((skill) => ({
+  id: skill.id,
+  title: skill.name,
+  subtitle: skill.category,
+  href: `/admin/skills/${skill.id}`,
+  enabled: skill.is_visible,
+}));
+---
+
+<AdminLayout title="Keahlian" description="Kelola daftar skill, urutan, dan tampil atau tidaknya.">
+  <FlashMessage />
+
+  <SortableList
+    client:load
+    items={entries}
+    table="skills"
+    toggle={{ field: 'is_visible', labelOn: 'Tampil', labelOff: 'Disembunyikan' }}
+    deletable
+    emptyText="Belum ada keahlian. Tambahkan lewat form di bawah."
+  />
+
+  <section class="mt-10" aria-labelledby="tambah-skill">
+    <h2 id="tambah-skill" class="text-lg font-semibold">Tambah keahlian</h2>
+
+    <form method="post" class="mt-4 flex flex-col gap-4">
+      <Field id="name" label="Nama" required>
+        <input id="name" name="name" type="text" required class={inputClass} />
+      </Field>
+
+      <Field id="category" label="Kategori" hint="Misal Backend, Database, Tools.">
+        <input id="category" name="category" type="text" value="Lainnya" class={inputClass} />
+      </Field>
+
+      <Field id="icon" label="Ikon" hint="Nama ikon Lucide (misal server, database) atau URL gambar.">
+        <input id="icon" name="icon" type="text" class={inputClass} />
+      </Field>
+
+      <label class="flex items-center gap-2 text-sm">
+        <input type="checkbox" name="is_visible" checked class={checkboxClass} />
+        Tampilkan di situs
+      </label>
+
+      <div>
+        <button type="submit" class={buttonPrimary}>Tambah</button>
+      </div>
+    </form>
+  </section>
+</AdminLayout>

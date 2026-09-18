@@ -1,0 +1,70 @@
+---
+import SectionShell from './SectionShell.astro';
+import Icon from '../ui/Icon.astro';
+import type { SkillsContent } from '../../lib/schemas';
+import type { Skill } from '../../lib/queries';
+
+interface Props {
+  id: string;
+  title?: string | null;
+  subtitle?: string | null;
+  content: SkillsContent;
+  skills: Skill[];
+}
+
+const { id, title, subtitle, content, skills } = Astro.props;
+
+function isImageIcon(icon: string | null): boolean {
+  return Boolean(icon && (icon.startsWith('http') || icon.startsWith('/')));
+}
+
+/** Kelompokkan skill berdasarkan category, pertahankan urutan kemunculan. */
+function groupByCategory(items: Skill[]): Array<{ category: string; items: Skill[] }> {
+  const groups: Array<{ category: string; items: Skill[] }> = [];
+  const index = new Map<string, number>();
+
+  for (const skill of items) {
+    const existing = index.get(skill.category);
+    if (existing === undefined) {
+      index.set(skill.category, groups.length);
+      groups.push({ category: skill.category, items: [skill] });
+    } else {
+      groups[existing].items.push(skill);
+    }
+  }
+
+  return groups;
+}
+
+const groups = content.group_by_category ? groupByCategory(skills) : [{ category: '', items: skills }];
+---
+
+<SectionShell id={id} title={title} subtitle={subtitle}>
+  {
+    skills.length === 0 ? (
+      <p class="text-sm text-muted">Belum ada keahlian yang ditambahkan.</p>
+    ) : (
+      <div class="space-y-8 sm:space-y-10">
+        {groups.map((group) => (
+          <div>
+            {content.group_by_category && group.category && (
+              <h3 class="mb-4 text-sm font-medium tracking-wide text-muted uppercase">{group.category}</h3>
+            )}
+            <ul class="grid grid-cols-2 gap-2.5 sm:grid-cols-3 sm:gap-3 lg:grid-cols-4">
+              {group.items.map((skill) => (
+                <li class="flex min-w-0 items-center gap-2 rounded-md border border-border bg-surface px-3 py-2.5 text-sm">
+                  {isImageIcon(skill.icon) ? (
+                    <img src={skill.icon ?? ''} alt="" width="18" height="18" loading="lazy" class="size-[18px] object-contain" />
+                  ) : (
+                    <Icon name={skill.icon} size={18} class="shrink-0 text-primary" />
+                  )}
+                  <span class="truncate">{skill.name}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
+    )
+  }
+</SectionShell>

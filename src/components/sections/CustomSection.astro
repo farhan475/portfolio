@@ -1,0 +1,22 @@
+---
+import SectionShell from './SectionShell.astro';
+import { renderMarkdown } from '../../lib/markdown';
+import type { CustomContent } from '../../lib/schemas';
+
+interface Props {
+  id: string;
+  title?: string | null;
+  subtitle?: string | null;
+  content: CustomContent;
+}
+
+const { id, title, subtitle, content } = Astro.props;
+
+// Diedit sebagai Markdown di /admin, jadi harus dirender sebagai Markdown juga.
+// Isinya hanya bisa ditulis admin lewat halaman yang dijaga RLS.
+const body = await renderMarkdown(content.body);
+---
+
+<SectionShell id={id} title={title} subtitle={subtitle}>
+  {body ? <div class="prose-db max-w-3xl" set:html={body} /> : null}
+</SectionShell>

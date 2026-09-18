@@ -1,0 +1,39 @@
+---
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import { getAdminStats } from '../../lib/queries';
+import { formatDateTime } from '../../lib/utils';
+
+// Middleware sudah memastikan supabase ada dan pengguna adalah admin.
+const supabase = Astro.locals.supabase!;
+const stats = await getAdminStats(supabase);
+
+const CARDS = [
+  { label: 'Proyek', value: stats.projects, href: '/admin/projects' },
+  { label: 'Keahlian', value: stats.skills, href: '/admin/skills' },
+  { label: 'Pengalaman', value: stats.experiences, href: '/admin/experiences' },
+  { label: 'Social Link', value: stats.socialLinks, href: '/admin/social-links' },
+];
+---
+
+<AdminLayout title="Dashboard" description="Ringkasan isi situs.">
+  <ul class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    {
+      CARDS.map((card) => (
+        <li>
+          <a
+            href={card.href}
+            class="block rounded-lg border border-border bg-surface p-5 transition-colors hover:border-primary"
+          >
+            <p class="text-3xl font-semibold">{card.value}</p>
+            <p class="mt-1 text-sm text-muted">{card.label}</p>
+          </a>
+        </li>
+      ))
+    }
+  </ul>
+
+  <div class="mt-8 rounded-lg border border-border p-5">
+    <h2 class="text-sm font-medium">Terakhir diperbarui</h2>
+    <p class="mt-1 text-sm text-muted">{formatDateTime(stats.lastUpdated)}</p>
+  </div>
+</AdminLayout>

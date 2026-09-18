@@ -1,0 +1,75 @@
+---
+import { Monitor, Moon, Sun } from 'lucide-react';
+---
+
+{/*
+  Jumlah keadaan tombol mengikuti `default_mode` situs, dan ditentukan
+  BaseLayout:
+  - bawaan "ikut perangkat" -> tiga keadaan: ikut perangkat, terang, gelap.
+    Keadaan pertama harus tetap bisa dicapai kembali, kalau tidak sekali klik
+    saja situs berhenti mengikuti perangkat untuk selamanya.
+  - bawaan gelap atau terang -> dua keadaan: terang <-> gelap. Di sini "ikut
+    perangkat" tidak punya hasil yang berbeda dari mode tetap itu, jadi
+    menyertakannya hanya membuat satu klik terasa tidak mengubah apa pun.
+
+  Ikon dipilih kelas `pref-*` di <html> yang sudah dipasang script inline
+  BaseLayout sebelum body dicat, jadi ikon yang benar sudah tampil di cat
+  pertama tanpa menunggu script komponen ini. Ikon monitor ikut dirender pada
+  pilihan apa pun; pada bawaan gelap/terang kelas `pref-system` memang tidak
+  akan pernah muncul sehingga ikon itu tetap tersembunyi.
+*/}
+<button
+  type="button"
+  id="theme-toggle"
+  class="inline-flex size-9 items-center justify-center rounded-md border border-border-strong text-muted transition-colors hover:border-primary hover:text-foreground"
+  aria-label="Ganti mode tampilan"
+>
+  <Monitor size={18} aria-hidden="true" className="hidden [html.pref-system_&]:block" />
+  <Sun size={18} aria-hidden="true" className="hidden [html.pref-light_&]:block" />
+  <Moon size={18} aria-hidden="true" className="hidden [html.pref-dark_&]:block" />
+</button>
+
+<script>
+  const button = document.getElementById('theme-toggle');
+  const theme = window.__theme;
+
+  const MODE_TEXT: Record<ThemeResolved, string> = { light: 'terang', dark: 'gelap' };
+
+  const NEXT_TEXT: Record<ThemePreference, string> = {
+    system: 'ikut perangkat',
+    light: 'mode terang',
+    dark: 'mode gelap',
+  };
+
+  /**
+   * Keadaan berikutnya datang dari BaseLayout, bukan dihitung ulang di sini.
+   * Urutannya bergantung pada default_mode situs, dan dua salinan logika yang
+   * sama pasti akan lepas sinkron cepat atau lambat.
+   */
+  function sync(preference: ThemePreference, resolved: ThemeResolved, next: ThemePreference): void {
+    if (!button) return;
+
+    const current =
+      preference === 'system' ? `ikut perangkat (${MODE_TEXT[resolved]})` : MODE_TEXT[preference];
+    const label = `Mode tampilan: ${current}. Klik untuk ganti ke ${NEXT_TEXT[next]}.`;
+
+    button.setAttribute('aria-label', label);
+    // title menolong pengguna tetikus; aria-label saja tidak terlihat.
+    button.setAttribute('title', label);
+  }
+
+  if (!theme) {
+    // BaseLayout selalu memasang window.__theme. Tanpa itu tombol ini tidak
+    // bisa berbuat apa pun, jadi lebih baik disembunyikan daripada mati diam.
+    button?.setAttribute('hidden', '');
+  } else {
+    button?.addEventListener('click', () => theme.cycle());
+
+    window.addEventListener('theme:change', (event) => {
+      sync(event.detail.preference, event.detail.resolved, event.detail.next);
+    });
+
+    // Script ini berjalan setelah <head>, jadi event pertama sudah terlewat.
+    sync(theme.preference(), theme.resolved(), theme.next());
+  }
+</script>

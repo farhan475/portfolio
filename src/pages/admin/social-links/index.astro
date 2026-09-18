@@ -1,0 +1,90 @@
+---
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import FlashMessage from '../../../components/admin/FlashMessage.astro';
+import Field from '../../../components/admin/Field.astro';
+import SortableList from '../../../components/admin/SortableList.tsx';
+import { getSocialLinks } from '../../../lib/queries';
+import { socialLinkFormSchema } from '../../../lib/schemas';
+import { backTo, formBool, formInt, formRequired, formText, zodMessage } from '../../../lib/form';
+import { buttonPrimary, checkboxClass, inputClass } from '../../../lib/ui';
+
+const supabase = Astro.locals.supabase!;
+
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  const parsed = socialLinkFormSchema.safeParse({
+    platform: formRequired(form, 'platform'),
+    url: formRequired(form, 'url'),
+    icon: formText(form, 'icon'),
+    sort_order: formInt(form, 'sort_order', 0),
+    is_visible: formBool(form, 'is_visible'),
+  });
+
+  if (!parsed.success) {
+    return Astro.redirect(backTo('/admin/social-links', { error: zodMessage(parsed.error) }), 303);
+  }
+
+  const { error } = await supabase.from('social_links').insert(parsed.data);
+  return Astro.redirect(
+    backTo(
+      '/admin/social-links',
+      error ? { error: error.message } : { ok: `Tautan "${parsed.data.platform}" ditambahkan.` },
+    ),
+    303,
+  );
+}
+
+const socialLinks = await getSocialLinks(supabase, { includeHidden: true });
+
+const entries = socialLinks.map((link) => ({
+  id: link.id,
+  title: link.platform,
+  subtitle: link.url,
+  href: `/admin/social-links/${link.id}`,
+  enabled: link.is_visible,
+}));
+---
+
+<AdminLayout title="Tautan Sosial" description="Kelola daftar tautan sosial, urutan, dan tampil atau tidaknya.">
+  <FlashMessage />
+
+  <SortableList
+    client:load
+    items={entries}
+    table="social_links"
+    toggle={{ field: 'is_visible', labelOn: 'Tampil', labelOff: 'Disembunyikan' }}
+    deletable
+    emptyText="Belum ada tautan sosial. Tambahkan lewat form di bawah."
+  />
+
+  <section class="mt-10" aria-labelledby="tambah-tautan">
+    <h2 id="tambah-tautan" class="text-lg font-semibold">Tambah tautan sosial</h2>
+
+    <form method="post" class="mt-4 flex flex-col gap-4">
+      <Field id="platform" label="Platform" required>
+        <input id="platform" name="platform" type="text" required class={inputClass} />
+      </Field>
+
+      <Field id="url" label="URL" required hint="Boleh juga mailto:email@contoh.com">
+        <input id="url" name="url" type="text" required class={inputClass} />
+      </Field>
+
+      <Field
+        id="icon"
+        label="Ikon"
+        hint="Nama ikon Lucide, atau github/linkedin/x/instagram/youtube/facebook/telegram"
+      >
+        <input id="icon" name="icon" type="text" class={inputClass} />
+      </Field>
+
+      <label class="flex items-center gap-2 text-sm">
+        <input type="checkbox" name="is_visible" checked class={checkboxClass} />
+        Tampilkan di situs
+      </label>
+
+      <div>
+        <button type="submit" class={buttonPrimary}>Tambah</button>
+      </div>
+    </form>
+  </section>
+</AdminLayout>

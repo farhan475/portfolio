@@ -1,0 +1,108 @@
+---
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import FlashMessage from '../../../components/admin/FlashMessage.astro';
+import Field from '../../../components/admin/Field.astro';
+import { sectionContentSchemas, sectionFormSchema } from '../../../lib/schemas';
+import { backTo, formBool, formInt, formRequired, formText, zodMessage } from '../../../lib/form';
+import { buttonGhost, buttonPrimary, checkboxClass, inputClass } from '../../../lib/ui';
+
+const supabase = Astro.locals.supabase!;
+
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  const parsed = sectionFormSchema.safeParse({
+    key: formRequired(form, 'key'),
+    type: formText(form, 'type'),
+    title: formText(form, 'title'),
+    subtitle: formText(form, 'subtitle'),
+    content: {},
+    sort_order: formInt(form, 'sort_order', 0),
+    is_visible: formBool(form, 'is_visible'),
+  });
+
+  if (!parsed.success) {
+    return Astro.redirect(backTo('/admin/sections/new', { error: zodMessage(parsed.error) }), 303);
+  }
+
+  const contentSchema = sectionContentSchemas[parsed.data.type];
+  const defaultContent = contentSchema.parse({});
+
+  const { data, error } = await supabase
+    .from('sections')
+    .insert({
+      key: parsed.data.key,
+      type: parsed.data.type,
+      title: parsed.data.title,
+      subtitle: parsed.data.subtitle,
+      sort_order: parsed.data.sort_order,
+      is_visible: parsed.data.is_visible,
+      content: defaultContent,
+    })
+    .select('id')
+    .single();
+
+  if (error) {
+    const message = error.code === '23505' ? `Key "${parsed.data.key}" sudah dipakai section lain.` : error.message;
+    return Astro.redirect(backTo('/admin/sections/new', { error: message }), 303);
+  }
+
+  return Astro.redirect(
+    backTo(`/admin/sections/${data.id}`, { ok: 'Section dibuat. Sekarang isi kontennya.' }),
+    303,
+  );
+}
+---
+
+<AdminLayout title="Tambah section" description="Buat section baru, lalu isi kontennya setelah dibuat.">
+  <FlashMessage />
+
+  <form method="post" class="flex flex-col gap-4">
+    <Field
+      id="key"
+      label="Key"
+      required
+      hint="Dipakai sebagai anchor URL, misal #tentang. Hanya huruf kecil, angka, dan tanda hubung."
+    >
+      <input id="key" name="key" type="text" required pattern="[a-z0-9\-]+" class={inputClass} />
+    </Field>
+
+    <Field
+      id="type"
+      label="Type"
+      required
+      hint="Type tidak bisa diubah setelah section dibuat, karena menentukan bentuk isinya."
+    >
+      <select id="type" name="type" required class={inputClass}>
+        <option value="hero">Hero</option>
+        <option value="about">Tentang</option>
+        <option value="skills">Keahlian</option>
+        <option value="projects">Proyek</option>
+        <option value="experience">Pengalaman</option>
+        <option value="contact">Kontak</option>
+        <option value="custom">Kustom (Markdown bebas)</option>
+      </select>
+    </Field>
+
+    <Field id="title" label="Judul">
+      <input id="title" name="title" type="text" class={inputClass} />
+    </Field>
+
+    <Field id="subtitle" label="Subjudul">
+      <input id="subtitle" name="subtitle" type="text" class={inputClass} />
+    </Field>
+
+    <Field id="sort_order" label="Urutan">
+      <input id="sort_order" name="sort_order" type="number" value="0" class={inputClass} />
+    </Field>
+
+    <label class="flex items-center gap-2 text-sm">
+      <input type="checkbox" name="is_visible" checked class={checkboxClass} />
+      Tampilkan section ini
+    </label>
+
+    <div class="flex gap-3">
+      <button type="submit" class={buttonPrimary}>Tambah</button>
+      <a href="/admin/sections" class={buttonGhost}>Batal</a>
+    </div>
+  </form>
+</AdminLayout>

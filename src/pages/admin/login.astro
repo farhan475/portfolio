@@ -1,0 +1,78 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { buttonPrimary, inputClass } from '../../lib/ui';
+import { getSiteSettings, type SiteSettings } from '../../lib/queries';
+
+const supabase = Astro.locals.supabase;
+let settings: SiteSettings | null = null;
+if (supabase) {
+  settings = await getSiteSettings(supabase);
+}
+
+const ERRORS: Record<string, string> = {
+  config: 'Konfigurasi Supabase belum lengkap. Periksa PUBLIC_SUPABASE_URL dan PUBLIC_SUPABASE_ANON_KEY.',
+  auth: 'Silakan masuk dulu untuk membuka halaman admin.',
+  forbidden: 'Akun ini bukan admin. Hubungi pemilik situs untuk didaftarkan.',
+  credentials: 'Email atau password salah.',
+  invalid: 'Email atau password belum diisi dengan benar.',
+};
+
+const errorKey = Astro.url.searchParams.get('error');
+const errorMessage = errorKey ? (ERRORS[errorKey] ?? 'Terjadi kesalahan saat masuk.') : null;
+const notice = Astro.url.searchParams.get('notice') === 'logout' ? 'Kamu sudah keluar.' : null;
+---
+
+<BaseLayout settings={settings} title="Masuk Admin" noindex>
+  <main id="konten" class="container-page flex min-h-screen items-center justify-center py-12 sm:py-16">
+    <div class="w-full max-w-sm">
+      <h1 class="text-2xl font-semibold">Masuk Admin</h1>
+      <p class="mt-2 text-sm text-muted">Hanya akun terdaftar sebagai admin yang bisa masuk.</p>
+
+      {
+        errorMessage && (
+          <p role="alert" class="mt-6 rounded-md border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-400">
+            {errorMessage}
+          </p>
+        )
+      }
+      {
+        notice && (
+          <p role="status" class="mt-6 rounded-md border border-border bg-surface px-3 py-2 text-sm text-muted">
+            {notice}
+          </p>
+        )
+      }
+
+      <form method="post" action="/api/auth/login" class="mt-6 flex flex-col gap-4">
+        <div>
+          <label for="email" class="mb-1.5 block text-sm font-medium">Email</label>
+          <input
+            id="email"
+            name="email"
+            type="email"
+            autocomplete="username"
+            required
+            class={inputClass}
+          />
+        </div>
+
+        <div>
+          <label for="password" class="mb-1.5 block text-sm font-medium">Password</label>
+          <input
+            id="password"
+            name="password"
+            type="password"
+            autocomplete="current-password"
+            required
+            minlength="6"
+            class={inputClass}
+          />
+        </div>
+
+        <button type="submit" class:list={[buttonPrimary, 'mt-2']}>Masuk</button>
+      </form>
+
+      <a href="/" class="mt-6 inline-block text-sm text-muted hover:text-foreground">&larr; Kembali ke situs</a>
+    </div>
+  </main>
+</BaseLayout>

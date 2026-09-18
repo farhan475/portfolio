@@ -1,0 +1,129 @@
+---
+import { Menu, X } from 'lucide-react';
+import ThemeToggle from './ThemeToggle.astro';
+import type { SiteSettings } from '../lib/queries';
+
+interface Props {
+  settings: SiteSettings | null;
+}
+
+const { settings } = Astro.props;
+
+const navItems = settings?.nav_items ?? [];
+const logoText = settings?.logo_text ?? settings?.site_title ?? 'Portfolio';
+const logoUrl = settings?.logo_url ?? null;
+const resumeUrl = settings?.resume_url ?? null;
+---
+
+<header
+  class="sticky top-0 z-40 border-b border-border bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/70"
+>
+  <nav class="container-page flex h-16 items-center justify-between gap-3" aria-label="Navigasi utama">
+    <a href="/" class="flex min-w-0 items-center gap-2 font-heading text-base font-semibold sm:text-lg">
+      {
+        logoUrl ? (
+          <img src={logoUrl} alt={logoText} width="28" height="28" loading="eager" class="size-7 object-contain" />
+        ) : null
+      }
+      <span class="truncate">{logoText}</span>
+    </a>
+
+    <ul class="hidden items-center gap-6 md:flex">
+      {
+        navItems.map((item) => (
+          <li>
+            <a href={item.href} class="text-sm text-muted transition-colors hover:text-foreground">
+              {item.label}
+            </a>
+          </li>
+        ))
+      }
+    </ul>
+
+    <div class="flex shrink-0 items-center gap-2">
+      {
+        resumeUrl ? (
+          <a
+            href={resumeUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            class="hidden rounded-md border border-border-strong px-3 py-1.5 text-sm text-muted transition-colors hover:border-primary hover:text-foreground sm:inline-block"
+          >
+            Resume
+          </a>
+        ) : null
+      }
+      <ThemeToggle />
+      <button
+        type="button"
+        id="nav-toggle"
+        class="inline-flex size-9 items-center justify-center rounded-md border border-border-strong text-muted md:hidden"
+        aria-label="Buka menu"
+        aria-expanded="false"
+        aria-controls="nav-mobile"
+      >
+        <Menu size={18} aria-hidden="true" id="nav-icon-open" />
+        <X size={18} aria-hidden="true" id="nav-icon-close" className="hidden" />
+      </button>
+    </div>
+  </nav>
+
+  <div id="nav-mobile" class="hidden max-h-[70vh] overflow-y-auto border-t border-border md:hidden">
+    <ul class="container-page flex flex-col py-2">
+      {
+        navItems.map((item) => (
+          <li>
+            <a
+              href={item.href}
+              class="block py-3 text-sm text-muted transition-colors hover:text-foreground"
+              data-nav-link
+            >
+              {item.label}
+            </a>
+          </li>
+        ))
+      }
+      {
+        resumeUrl ? (
+          <li class="sm:hidden">
+            <a
+              href={resumeUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              class="block py-3 text-sm text-muted transition-colors hover:text-foreground"
+            >
+              Resume
+            </a>
+          </li>
+        ) : null
+      }
+    </ul>
+  </div>
+</header>
+
+<script>
+  const toggle = document.getElementById('nav-toggle');
+  const menu = document.getElementById('nav-mobile');
+  const iconOpen = document.getElementById('nav-icon-open');
+  const iconClose = document.getElementById('nav-icon-close');
+
+  function setOpen(open: boolean) {
+    menu?.classList.toggle('hidden', !open);
+    iconOpen?.classList.toggle('hidden', open);
+    iconClose?.classList.toggle('hidden', !open);
+    toggle?.setAttribute('aria-expanded', String(open));
+    toggle?.setAttribute('aria-label', open ? 'Tutup menu' : 'Buka menu');
+  }
+
+  toggle?.addEventListener('click', () => {
+    setOpen(menu?.classList.contains('hidden') ?? true);
+  });
+
+  for (const link of document.querySelectorAll('[data-nav-link]')) {
+    link.addEventListener('click', () => setOpen(false));
+  }
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') setOpen(false);
+  });
+</script>

@@ -1,0 +1,131 @@
+---
+import {
+  Briefcase,
+  ExternalLink,
+  FolderKanban,
+  LayoutDashboard,
+  LayoutList,
+  LogOut,
+  Settings,
+  Share2,
+  Wrench,
+} from 'lucide-react';
+import BaseLayout from './BaseLayout.astro';
+import { getSiteSettings, type SiteSettings } from '../lib/queries';
+
+interface Props {
+  title: string;
+  /** Kalimat pendek di bawah judul halaman. */
+  description?: string;
+}
+
+const { title, description } = Astro.props;
+
+const supabase = Astro.locals.supabase;
+let settings: SiteSettings | null = null;
+if (supabase) {
+  settings = await getSiteSettings(supabase);
+}
+
+const NAV = [
+  { href: '/admin', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/admin/settings', label: 'Pengaturan Situs', icon: Settings },
+  { href: '/admin/sections', label: 'Section', icon: LayoutList },
+  { href: '/admin/projects', label: 'Proyek', icon: FolderKanban },
+  { href: '/admin/skills', label: 'Keahlian', icon: Wrench },
+  { href: '/admin/experiences', label: 'Pengalaman', icon: Briefcase },
+  { href: '/admin/social-links', label: 'Social Link', icon: Share2 },
+] as const;
+
+const current = Astro.url.pathname.replace(/\/+$/, '') || '/';
+
+function isActive(href: string): boolean {
+  return href === '/admin' ? current === '/admin' : current === href || current.startsWith(`${href}/`);
+}
+---
+
+<BaseLayout settings={settings} title={title} noindex bodyClass="min-h-screen">
+  <div class="flex min-h-screen flex-col lg:flex-row">
+    <!--
+      Di ponsel sidebar jadi bar atas yang bisa digeser mendatar. Membungkus
+      tujuh menu jadi beberapa baris memakan hampir separuh layar.
+    -->
+    <aside
+      class="sticky top-0 z-30 border-b border-border bg-background lg:static lg:w-64 lg:shrink-0 lg:border-r lg:border-b-0"
+    >
+      <div class="flex h-14 items-center truncate px-4 font-heading text-base font-semibold lg:h-16 lg:px-5">
+        {settings?.logo_text ?? 'Admin'}
+      </div>
+
+      <nav
+        aria-label="Navigasi admin"
+        class="flex gap-1 overflow-x-auto px-4 pb-3 lg:flex-col lg:overflow-x-visible lg:px-3 lg:pb-4"
+      >
+        <ul class="flex gap-1 lg:flex-col">
+          {
+            NAV.map((item) => (
+              <li>
+                <a
+                  href={item.href}
+                  aria-current={isActive(item.href) ? 'page' : undefined}
+                  class:list={[
+                    'flex items-center gap-2.5 rounded-md px-3 py-2 text-sm whitespace-nowrap transition-colors',
+                    isActive(item.href)
+                      ? 'bg-surface text-foreground'
+                      : 'text-muted hover:bg-surface hover:text-foreground',
+                  ]}
+                >
+                  <item.icon size={16} aria-hidden="true" />
+                  {item.label}
+                </a>
+              </li>
+            ))
+          }
+        </ul>
+
+        <hr class="my-4 hidden border-border lg:block" />
+
+        <ul class="flex gap-1 lg:flex-col">
+          <li>
+            <a
+              href="/"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="flex items-center gap-2.5 rounded-md px-3 py-2 text-sm whitespace-nowrap text-muted transition-colors hover:bg-surface hover:text-foreground"
+            >
+              <ExternalLink size={16} aria-hidden="true" />
+              Lihat situs
+            </a>
+          </li>
+          <li>
+            <form method="post" action="/api/auth/logout">
+              <button
+                type="submit"
+                class="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-sm whitespace-nowrap text-muted transition-colors hover:bg-surface hover:text-foreground"
+              >
+                <LogOut size={16} aria-hidden="true" />
+                Keluar
+              </button>
+            </form>
+          </li>
+        </ul>
+      </nav>
+    </aside>
+
+    <div class="min-w-0 flex-1">
+      <main id="konten" class="mx-auto w-full max-w-4xl px-4 py-8 sm:px-6 lg:py-12">
+        <header class="mb-8">
+          <h1 class="text-xl font-semibold sm:text-2xl">{title}</h1>
+          {description && <p class="mt-1.5 text-sm text-muted">{description}</p>}
+          {
+            Astro.locals.user?.email && (
+              <p class="mt-3 text-xs text-muted">Masuk sebagai {Astro.locals.user.email}</p>
+            )
+          }
+        </header>
+
+        <slot />
+      </main>
+    </div>
+  </div>
+</BaseLayout>

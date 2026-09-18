@@ -1,0 +1,39 @@
+---
+import { Plus } from 'lucide-react';
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import FlashMessage from '../../../components/admin/FlashMessage.astro';
+import SortableList from '../../../components/admin/SortableList.tsx';
+import { getProjects } from '../../../lib/queries';
+import { buttonPrimary } from '../../../lib/ui';
+
+const supabase = Astro.locals.supabase!;
+const projects = await getProjects(supabase, { includeUnpublished: true });
+
+const entries = projects.map((project) => ({
+  id: project.id,
+  title: project.title,
+  subtitle: `/projects/${project.slug}${project.featured ? ' · unggulan' : ''}`,
+  href: `/admin/projects/${project.id}`,
+  enabled: project.is_published,
+}));
+---
+
+<AdminLayout title="Proyek" description="Kelola daftar proyek, urutan, dan status terbit.">
+  <FlashMessage />
+
+  <div class="mb-6">
+    <a href="/admin/projects/new" class:list={[buttonPrimary, 'inline-flex items-center gap-1.5']}>
+      <Plus size={16} aria-hidden="true" />
+      Tambah proyek
+    </a>
+  </div>
+
+  <SortableList
+    client:load
+    items={entries}
+    table="projects"
+    toggle={{ field: 'is_published', labelOn: 'Terbit', labelOff: 'Draft' }}
+    deletable
+    emptyText="Belum ada proyek."
+  />
+</AdminLayout>

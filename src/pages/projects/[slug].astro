@@ -1,0 +1,137 @@
+---
+import { ArrowLeft, ArrowUpRight } from 'lucide-react';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import Navbar from '../../components/Navbar.astro';
+import Footer from '../../components/Footer.astro';
+import Icon from '../../components/ui/Icon.astro';
+import { getProjectBySlug, getSiteSettings, getSocialLinks } from '../../lib/queries';
+import { renderMarkdown } from '../../lib/markdown';
+
+const { slug } = Astro.params;
+
+const supabase = Astro.locals.supabase;
+
+if (!slug || !supabase) {
+  return Astro.rewrite('/404');
+}
+
+const [settings, project, socialLinks] = await Promise.all([
+  getSiteSettings(supabase),
+  getProjectBySlug(supabase, slug),
+  getSocialLinks(supabase),
+]);
+
+if (!project) {
+  return Astro.rewrite('/404');
+}
+
+Astro.response.headers.set('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300');
+
+const body = await renderMarkdown(project.content);
+---
+
+<BaseLayout
+  settings={settings}
+  title={project.title}
+  description={project.description}
+  image={project.image_url}
+>
+  <Navbar settings={settings} />
+
+  <main id="konten" class="container-page py-8 sm:py-12 lg:py-16">
+    <a href="/#projects" class="inline-flex items-center gap-2 text-sm text-muted hover:text-foreground">
+      <ArrowLeft size={16} aria-hidden="true" />
+      Kembali ke daftar proyek
+    </a>
+
+    <article class="mt-8">
+      <header class="max-w-3xl">
+        {project.category ? <p class="text-sm font-medium tracking-wide text-primary uppercase">{project.category}</p> : null}
+        <h1 class="mt-2 text-2xl font-semibold sm:text-3xl lg:text-4xl">{project.title}</h1>
+        <p class="mt-4 text-sm leading-relaxed text-muted sm:text-base">{project.description}</p>
+
+        {
+          project.tech_stack.length > 0 ? (
+            <ul class="mt-6 flex flex-wrap gap-1.5">
+              {project.tech_stack.map((tech) => (
+                <li class="rounded border border-border px-2 py-0.5 text-xs text-muted">{tech}</li>
+              ))}
+            </ul>
+          ) : null
+        }
+
+        {
+          project.github_url || project.demo_url ? (
+            <div class="mt-6 flex flex-wrap gap-3">
+              {project.github_url ? (
+                <a
+                  href={project.github_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="inline-flex grow items-center justify-center gap-2 rounded-md border border-border-strong px-4 py-2.5 text-sm transition-colors hover:border-primary sm:grow-0"
+                >
+                  <Icon name="github" size={16} />
+                  Lihat kode
+                </a>
+              ) : null}
+              {project.demo_url ? (
+                <a
+                  href={project.demo_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="inline-flex grow items-center justify-center gap-2 rounded-md bg-primary px-4 py-2.5 text-sm font-medium text-background transition-opacity hover:opacity-90 sm:grow-0"
+                >
+                  <ArrowUpRight size={16} aria-hidden="true" />
+                  Buka demo
+                </a>
+              ) : null}
+            </div>
+          ) : null
+        }
+      </header>
+
+      {
+        project.image_url ? (
+          <img
+            src={project.image_url}
+            alt={`Tangkapan layar ${project.title}`}
+            width="1200"
+            height="750"
+            loading="lazy"
+            decoding="async"
+            class="mt-8 h-auto w-full rounded-lg border border-border object-cover sm:mt-10"
+          />
+        ) : null
+      }
+
+      {body ? <div class="prose-db mt-8 max-w-3xl sm:mt-10" set:html={body} /> : null}
+
+      {
+        project.gallery.length > 0 ? (
+          <section class="mt-12" aria-labelledby="galeri-judul">
+            <h2 id="galeri-judul" class="text-xl font-semibold">
+              Galeri
+            </h2>
+            <ul class="mt-4 grid gap-4 sm:grid-cols-2">
+              {project.gallery.map((src, index) => (
+                <li>
+                  <img
+                    src={src}
+                    alt={`${project.title} — gambar ${index + 1}`}
+                    width="800"
+                    height="500"
+                    loading="lazy"
+                    decoding="async"
+                    class="h-auto w-full rounded-lg border border-border object-cover"
+                  />
+                </li>
+              ))}
+            </ul>
+          </section>
+        ) : null
+      }
+    </article>
+  </main>
+
+  <Footer settings={settings} socialLinks={socialLinks} />
+</BaseLayout>

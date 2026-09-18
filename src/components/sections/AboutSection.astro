@@ -1,0 +1,51 @@
+---
+import SectionShell from './SectionShell.astro';
+import type { AboutContent } from '../../lib/schemas';
+
+interface Props {
+  id: string;
+  title?: string | null;
+  subtitle?: string | null;
+  content: AboutContent;
+}
+
+const { id, title, subtitle, content } = Astro.props;
+const hasImage = Boolean(content.image_url);
+---
+
+<SectionShell id={id} title={title} subtitle={subtitle}>
+  <div class:list={['grid gap-8 md:gap-10', hasImage && 'md:grid-cols-2 md:items-center']}>
+    <div class="min-w-0">
+      {content.body && <p class="whitespace-pre-line text-foreground/90">{content.body}</p>}
+
+      {
+        content.highlights.length > 0 && (
+          <dl class="mt-8 grid grid-cols-2 gap-5 sm:grid-cols-3 sm:gap-6">
+            {content.highlights.map((highlight) => (
+              <div class="min-w-0">
+                <dt class="text-xl font-bold break-words sm:text-2xl md:text-3xl">{highlight.value}</dt>
+                <dd class="mt-1 text-sm text-muted">{highlight.label}</dd>
+              </div>
+            ))}
+          </dl>
+        )
+      }
+    </div>
+
+    {
+      hasImage && (
+        <div class="mx-auto w-full max-w-xs sm:max-w-sm">
+          <img
+            src={content.image_url ?? undefined}
+            alt="Foto profil"
+            width="480"
+            height="480"
+            loading="lazy"
+            decoding="async"
+            class="aspect-square w-full rounded-lg border border-border object-cover"
+          />
+        </div>
+      )
+    }
+  </div>
+</SectionShell>

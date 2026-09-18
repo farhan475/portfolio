@@ -1,0 +1,92 @@
+---
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import FlashMessage from '../../../components/admin/FlashMessage.astro';
+import Field from '../../../components/admin/Field.astro';
+import { experienceFormSchema } from '../../../lib/schemas';
+import { backTo, formBool, formInt, formRequired, formText, zodMessage } from '../../../lib/form';
+import { buttonGhost, buttonPrimary, checkboxClass, inputClass } from '../../../lib/ui';
+
+const supabase = Astro.locals.supabase!;
+const { id } = Astro.params;
+
+if (!id) return Astro.rewrite('/404');
+
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  const parsed = experienceFormSchema.safeParse({
+    role: formRequired(form, 'role'),
+    company: formRequired(form, 'company'),
+    company_url: formText(form, 'company_url'),
+    location: formText(form, 'location'),
+    start_date: formRequired(form, 'start_date'),
+    end_date: formText(form, 'end_date'),
+    description: formText(form, 'description'),
+    sort_order: formInt(form, 'sort_order', 0),
+    is_visible: formBool(form, 'is_visible'),
+  });
+
+  if (!parsed.success) {
+    return Astro.redirect(backTo(`/admin/experiences/${id}`, { error: zodMessage(parsed.error) }), 303);
+  }
+
+  const { error } = await supabase.from('experiences').update(parsed.data).eq('id', id);
+  return Astro.redirect(
+    backTo(
+      error ? `/admin/experiences/${id}` : '/admin/experiences',
+      error ? { error: error.message } : { ok: 'Pengalaman diperbarui.' },
+    ),
+    303,
+  );
+}
+
+const { data: experience } = await supabase.from('experiences').select('*').eq('id', id).maybeSingle();
+if (!experience) return Astro.rewrite('/404');
+---
+
+<AdminLayout title={`Edit: ${experience.role}`} description="Ubah detail pengalaman kerja.">
+  <FlashMessage />
+
+  <form method="post" class="flex flex-col gap-4">
+    <Field id="role" label="Posisi" required>
+      <input id="role" name="role" type="text" value={experience.role} required class={inputClass} />
+    </Field>
+
+    <Field id="company" label="Perusahaan" required>
+      <input id="company" name="company" type="text" value={experience.company} required class={inputClass} />
+    </Field>
+
+    <Field id="company_url" label="URL Perusahaan">
+      <input id="company_url" name="company_url" type="text" value={experience.company_url ?? ''} class={inputClass} />
+    </Field>
+
+    <Field id="location" label="Lokasi">
+      <input id="location" name="location" type="text" value={experience.location ?? ''} class={inputClass} />
+    </Field>
+
+    <Field id="start_date" label="Tanggal mulai" required>
+      <input id="start_date" name="start_date" type="date" value={experience.start_date} required class={inputClass} />
+    </Field>
+
+    <Field id="end_date" label="Tanggal selesai" hint="Kosongkan jika masih berjalan.">
+      <input id="end_date" name="end_date" type="date" value={experience.end_date ?? ''} class={inputClass} />
+    </Field>
+
+    <Field id="description" label="Deskripsi">
+      <textarea id="description" name="description" rows="4" class={inputClass}>{experience.description ?? ''}</textarea>
+    </Field>
+
+    <Field id="sort_order" label="Urutan">
+      <input id="sort_order" name="sort_order" type="number" value={experience.sort_order} class={inputClass} />
+    </Field>
+
+    <label class="flex items-center gap-2 text-sm">
+      <input type="checkbox" name="is_visible" checked={experience.is_visible} class={checkboxClass} />
+      Tampilkan di situs
+    </label>
+
+    <div class="flex gap-3">
+      <button type="submit" class={buttonPrimary}>Simpan</button>
+      <a href="/admin/experiences" class={buttonGhost}>Batal</a>
+    </div>
+  </form>
+</AdminLayout>

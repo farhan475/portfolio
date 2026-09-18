@@ -1,0 +1,30 @@
+---
+import SectionShell from './SectionShell.astro';
+import type { ContactContent } from '../../lib/schemas';
+
+interface Props {
+  id: string;
+  title?: string | null;
+  subtitle?: string | null;
+  content: ContactContent;
+}
+
+const { id, title, subtitle, content } = Astro.props;
+---
+
+<SectionShell id={id} title={title} subtitle={subtitle}>
+  <div class="max-w-2xl">
+    {content.body && <p class="text-foreground/90">{content.body}</p>}
+
+    {
+      content.email && (
+        <a
+          href={`mailto:${content.email}`}
+          class="mt-6 inline-flex w-full justify-center rounded-md bg-primary px-5 py-3 text-sm font-medium text-background sm:w-auto sm:py-2.5"
+        >
+          {content.cta_label}
+        </a>
+      )
+    }
+  </div>
+</SectionShell>

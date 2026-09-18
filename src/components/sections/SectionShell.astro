@@ -1,0 +1,30 @@
+---
+/** Pembungkus judul dan subjudul yang sama untuk semua section. */
+interface Props {
+  id: string;
+  title?: string | null;
+  subtitle?: string | null;
+  class?: string;
+}
+
+const { id, title, subtitle, class: className } = Astro.props;
+const headingId = title ? `${id}-judul` : undefined;
+---
+
+<section id={id} class:list={['border-b border-border py-12 sm:py-16 lg:py-24', className]} aria-labelledby={headingId}>
+  <div class="container-page">
+    {
+      (title || subtitle) && (
+        <header class="mb-8 max-w-2xl sm:mb-10">
+          {subtitle && <p class="mb-2 text-sm font-medium tracking-wide text-primary uppercase">{subtitle}</p>}
+          {title && (
+            <h2 id={headingId} class="text-2xl font-semibold sm:text-3xl lg:text-4xl">
+              {title}
+            </h2>
+          )}
+        </header>
+      )
+    }
+    <slot />
+  </div>
+</section>

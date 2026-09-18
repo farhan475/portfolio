@@ -1,0 +1,126 @@
+---
+import Field from './Field.astro';
+import ImageUploader from './ImageUploader.tsx';
+import TagInput from './TagInput.tsx';
+import GalleryUploader from './GalleryUploader.tsx';
+import MarkdownEditor from './MarkdownEditor.tsx';
+import type { Project } from '../../lib/queries';
+import { buttonGhost, buttonPrimary, checkboxClass, inputClass } from '../../lib/ui';
+
+interface Props {
+  /** null berarti form pembuatan proyek baru. */
+  project?: Project | null;
+  submitLabel: string;
+}
+
+const { project = null, submitLabel } = Astro.props;
+const isNew = project === null;
+---
+
+<form method="post" class="flex flex-col gap-5">
+  <Field id="title" label="Judul" required>
+    <input id="title" name="title" type="text" value={project?.title ?? ''} required maxlength="255" class={inputClass} />
+  </Field>
+
+  <Field
+    id="slug"
+    label="Slug"
+    required
+    hint="Dipakai di URL /projects/slug. Terisi otomatis dari judul, tapi bisa diubah."
+  >
+    <input
+      id="slug"
+      name="slug"
+      type="text"
+      value={project?.slug ?? ''}
+      required
+      maxlength="255"
+      pattern="[a-z0-9\-]+"
+      class={inputClass}
+    />
+  </Field>
+
+  <Field id="description" label="Deskripsi singkat" required hint="Muncul di kartu proyek dan meta description halaman detail.">
+    <textarea id="description" name="description" rows="3" required class={inputClass}>{project?.description ?? ''}</textarea>
+  </Field>
+
+  <Field id="category" label="Kategori" hint="Dipakai untuk filter, misal Backend, Fullstack, API.">
+    <input id="category" name="category" type="text" value={project?.category ?? ''} class={inputClass} />
+  </Field>
+
+  <ImageUploader client:load name="image_url" label="Gambar utama" value={project?.image_url} folder="projects" />
+
+  <GalleryUploader
+    client:load
+    name="gallery"
+    label="Galeri"
+    value={project?.gallery ?? []}
+    folder="projects"
+  />
+
+  <TagInput
+    client:load
+    name="tech_stack"
+    label="Tech stack"
+    value={project?.tech_stack ?? []}
+    placeholder="Misal Astro, lalu tekan Enter"
+  />
+
+  <div class="grid gap-4 sm:grid-cols-2">
+    <Field id="github_url" label="URL GitHub">
+      <input id="github_url" name="github_url" type="url" value={project?.github_url ?? ''} class={inputClass} />
+    </Field>
+
+    <Field id="demo_url" label="URL demo">
+      <input id="demo_url" name="demo_url" type="url" value={project?.demo_url ?? ''} class={inputClass} />
+    </Field>
+  </div>
+
+  <MarkdownEditor client:load name="content" label="Detail proyek (Markdown)" value={project?.content ?? ''} />
+
+  {
+    !isNew && (
+      <Field id="sort_order" label="Urutan">
+        <input id="sort_order" name="sort_order" type="number" value={project.sort_order} class={inputClass} />
+      </Field>
+    )
+  }
+
+  <div class="flex flex-col gap-2">
+    <label class="flex items-center gap-2 text-sm">
+      <input type="checkbox" name="featured" checked={project?.featured ?? false} class={checkboxClass} />
+      Tandai sebagai proyek unggulan
+    </label>
+    <label class="flex items-center gap-2 text-sm">
+      <input type="checkbox" name="is_published" checked={project?.is_published ?? true} class={checkboxClass} />
+      Terbitkan
+    </label>
+  </div>
+
+  <div class="flex gap-3">
+    <button type="submit" class={buttonPrimary}>{submitLabel}</button>
+    <a href="/admin/projects" class={buttonGhost}>Batal</a>
+  </div>
+</form>
+
+<script>
+  // Isi slug otomatis dari judul selama admin belum mengetik slug sendiri.
+  const title = document.getElementById('title') as HTMLInputElement | null;
+  const slug = document.getElementById('slug') as HTMLInputElement | null;
+  if (title && slug) {
+    let touched = slug.value.trim() !== '';
+    slug.addEventListener('input', () => {
+      touched = slug.value.trim() !== '';
+    });
+    title.addEventListener('input', () => {
+      if (touched) return;
+      slug.value = title.value
+        .toLowerCase()
+        .normalize('NFKD')
+        .replace(/[̀-ͯ]/g, '')
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .slice(0, 255);
+    });
+  }
+</script>

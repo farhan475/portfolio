@@ -1,0 +1,338 @@
+---
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import FlashMessage from '../../../components/admin/FlashMessage.astro';
+import Field from '../../../components/admin/Field.astro';
+import ImageUploader from '../../../components/admin/ImageUploader.tsx';
+import PairListEditor from '../../../components/admin/PairListEditor.tsx';
+import MarkdownEditor from '../../../components/admin/MarkdownEditor.tsx';
+import { getSectionById } from '../../../lib/queries';
+import {
+  aboutContentSchema,
+  contactContentSchema,
+  customContentSchema,
+  experienceContentSchema,
+  heroContentSchema,
+  projectsContentSchema,
+  sectionContentSchemas,
+  skillsContentSchema,
+} from '../../../lib/schemas';
+import type { SectionType } from '../../../types/database';
+import { backTo, formBool, formInt, formRequired, formText, zodMessage } from '../../../lib/form';
+import { removeOrphanAssets } from '../../../lib/storage';
+import { buttonGhost, buttonPrimary, checkboxClass, inputClass } from '../../../lib/ui';
+
+const supabase = Astro.locals.supabase!;
+const { id } = Astro.params;
+
+if (!id) return Astro.rewrite('/404');
+
+/** Membaca image_url dari content, untuk type yang memang punya gambar. */
+function imageUrlOf(content: unknown): string | null {
+  if (typeof content !== 'object' || content === null || !('image_url' in content)) return null;
+  const value = (content as { image_url?: unknown }).image_url;
+  return typeof value === 'string' ? value : null;
+}
+
+/** CTA dianggap kosong bila label dan href sama-sama kosong. */
+function cta(form: FormData, prefix: string): { label: string; href: string } | null {
+  const label = formText(form, `${prefix}_label`);
+  const href = formText(form, `${prefix}_href`);
+  if (!label && !href) return null;
+  return { label: label ?? '', href: href ?? '' };
+}
+
+function parseRows(form: FormData, key: string): unknown {
+  try {
+    return JSON.parse(String(form.get(key) ?? '[]'));
+  } catch {
+    return [];
+  }
+}
+
+/** Menyusun objek content sesuai type, sebelum divalidasi Zod. */
+function buildContent(type: SectionType, form: FormData): unknown {
+  switch (type) {
+    case 'hero':
+      return {
+        greeting: formText(form, 'greeting'),
+        name: formRequired(form, 'name'),
+        role: formText(form, 'role'),
+        description: formText(form, 'description'),
+        image_url: formText(form, 'image_url'),
+        cta_primary: cta(form, 'cta_primary'),
+        cta_secondary: cta(form, 'cta_secondary'),
+      };
+    case 'about':
+      return {
+        body: formText(form, 'body'),
+        image_url: formText(form, 'image_url'),
+        highlights: parseRows(form, 'highlights'),
+      };
+    case 'skills':
+      return { group_by_category: formBool(form, 'group_by_category') };
+    case 'projects':
+      return {
+        show_filter: formBool(form, 'show_filter'),
+        limit: formInt(form, 'limit', 6),
+        featured_only: formBool(form, 'featured_only'),
+        layout: formText(form, 'layout') ?? 'carousel',
+      };
+    case 'experience':
+      return { timeline: formBool(form, 'timeline') };
+    case 'contact':
+      return {
+        body: formText(form, 'body'),
+        email: formText(form, 'email'),
+        cta_label: formText(form, 'cta_label') ?? 'Kirim Email',
+      };
+    case 'custom':
+      return { body: formText(form, 'body') };
+  }
+}
+
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  const type = String(form.get('type') ?? '') as SectionType;
+  const schema = sectionContentSchemas[type];
+
+  if (!schema) {
+    return Astro.redirect(backTo(`/admin/sections/${id}`, { error: 'Type section tidak dikenal.' }), 303);
+  }
+
+  const parsedContent = schema.safeParse(buildContent(type, form));
+  if (!parsedContent.success) {
+    return Astro.redirect(backTo(`/admin/sections/${id}`, { error: zodMessage(parsedContent.error) }), 303);
+  }
+
+  const { data: before } = await supabase.from('sections').select('content').eq('id', id).maybeSingle();
+
+  const { error } = await supabase
+    .from('sections')
+    .update({
+      key: formRequired(form, 'section_key'),
+      title: formText(form, 'section_title'),
+      subtitle: formText(form, 'section_subtitle'),
+      is_visible: formBool(form, 'is_visible'),
+      content: parsedContent.data,
+    })
+    .eq('id', id);
+
+  if (error) {
+    const message =
+      error.code === '23505'
+        ? `Key "${formRequired(form, 'section_key')}" sudah dipakai section lain.`
+        : error.message;
+    return Astro.redirect(backTo(`/admin/sections/${id}`, { error: message }), 303);
+  }
+
+  if (before) {
+    await removeOrphanAssets(supabase, [imageUrlOf(before.content)], [imageUrlOf(parsedContent.data)]);
+  }
+
+  return Astro.redirect(backTo('/admin/sections', { ok: 'Section tersimpan.' }), 303);
+}
+
+const section = await getSectionById(supabase, id);
+if (!section) return Astro.rewrite('/404');
+
+const schema = sectionContentSchemas[section.type];
+const parsed = schema ? schema.safeParse(section.content ?? {}) : null;
+const contentWarning =
+  parsed && !parsed.success
+    ? `Isi tersimpan tidak cocok skema (${zodMessage(parsed.error)}). Form memakai nilai bawaan.`
+    : null;
+
+// Diparse per type supaya tipenya tegas di template. `.catch()` memakai nilai
+// bawaan skema bila isi tersimpan rusak, jadi form tetap bisa dibuka dan diperbaiki.
+const raw = section.content ?? {};
+const hero = section.type === 'hero' ? heroContentSchema.catch(heroContentSchema.parse({})).parse(raw) : null;
+const about = section.type === 'about' ? aboutContentSchema.catch(aboutContentSchema.parse({})).parse(raw) : null;
+const skills = section.type === 'skills' ? skillsContentSchema.catch(skillsContentSchema.parse({})).parse(raw) : null;
+const projects = section.type === 'projects' ? projectsContentSchema.catch(projectsContentSchema.parse({})).parse(raw) : null;
+const experience =
+  section.type === 'experience' ? experienceContentSchema.catch(experienceContentSchema.parse({})).parse(raw) : null;
+const contact = section.type === 'contact' ? contactContentSchema.catch(contactContentSchema.parse({})).parse(raw) : null;
+const custom = section.type === 'custom' ? customContentSchema.catch(customContentSchema.parse({})).parse(raw) : null;
+---
+
+<AdminLayout title={`Section: ${section.title ?? section.key}`} description={`Type: ${section.type} · anchor #${section.key}`}>
+  <FlashMessage />
+
+  {
+    contentWarning && (
+      <p role="alert" class="mb-6 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-400">
+        {contentWarning}
+      </p>
+    )
+  }
+
+  <form method="post" class="flex flex-col gap-6">
+    <input type="hidden" name="type" value={section.type} />
+
+    <Field
+      id="section_key"
+      label="Key (anchor)"
+      required
+      hint="Dipakai di URL sebagai #anchor dan di menu navigasi. Mengubahnya akan memutus link lama."
+    >
+      <input
+        id="section_key"
+        name="section_key"
+        type="text"
+        value={section.key}
+        required
+        pattern="[a-z0-9\-]+"
+        class={inputClass}
+      />
+    </Field>
+
+    <div class="grid gap-4 sm:grid-cols-2">
+      <Field id="section_title" label="Judul section">
+        <input id="section_title" name="section_title" type="text" value={section.title ?? ''} class={inputClass} />
+      </Field>
+
+      <Field id="section_subtitle" label="Subjudul section">
+        <input id="section_subtitle" name="section_subtitle" type="text" value={section.subtitle ?? ''} class={inputClass} />
+      </Field>
+    </div>
+
+    <label class="flex items-center gap-2 text-sm">
+      <input type="checkbox" name="is_visible" checked={section.is_visible} class={checkboxClass} />
+      Tampilkan section ini
+    </label>
+
+    <hr class="border-border" />
+    <h2 class="text-lg font-semibold">Isi section</h2>
+
+    {
+      hero && (
+        <div class="flex flex-col gap-4">
+          <Field id="greeting" label="Sapaan">
+            <input id="greeting" name="greeting" type="text" value={hero.greeting ?? ''} class={inputClass} />
+          </Field>
+          <Field id="name" label="Nama" required>
+            <input id="name" name="name" type="text" value={hero.name} required class={inputClass} />
+          </Field>
+          <Field id="role" label="Peran">
+            <input id="role" name="role" type="text" value={hero.role ?? ''} class={inputClass} />
+          </Field>
+          <Field id="description" label="Deskripsi">
+            <textarea id="description" name="description" rows="3" class={inputClass}>{hero.description ?? ''}</textarea>
+          </Field>
+          <ImageUploader client:load name="image_url" label="Foto" value={hero.image_url} folder="hero" />
+
+          <div class="grid gap-4 sm:grid-cols-2">
+            <Field id="cta_primary_label" label="Tombol utama - label">
+              <input id="cta_primary_label" name="cta_primary_label" type="text" value={hero.cta_primary?.label ?? ''} class={inputClass} />
+            </Field>
+            <Field id="cta_primary_href" label="Tombol utama - href">
+              <input id="cta_primary_href" name="cta_primary_href" type="text" value={hero.cta_primary?.href ?? ''} class={inputClass} />
+            </Field>
+            <Field id="cta_secondary_label" label="Tombol kedua - label">
+              <input id="cta_secondary_label" name="cta_secondary_label" type="text" value={hero.cta_secondary?.label ?? ''} class={inputClass} />
+            </Field>
+            <Field id="cta_secondary_href" label="Tombol kedua - href">
+              <input id="cta_secondary_href" name="cta_secondary_href" type="text" value={hero.cta_secondary?.href ?? ''} class={inputClass} />
+            </Field>
+          </div>
+        </div>
+      )
+    }
+
+    {
+      about && (
+        <div class="flex flex-col gap-4">
+          <Field id="body" label="Paragraf">
+            <textarea id="body" name="body" rows="6" class={inputClass}>{about.body ?? ''}</textarea>
+          </Field>
+          <ImageUploader client:load name="image_url" label="Gambar" value={about.image_url} folder="about" />
+          <PairListEditor
+            client:load
+            name="highlights"
+            label="Angka sorotan"
+            fields={[
+              { key: 'value', label: 'Nilai (misal 2+)' },
+              { key: 'label', label: 'Keterangan' },
+            ]}
+            value={about.highlights}
+            addLabel="Tambah sorotan"
+            emptyText="Belum ada sorotan."
+          />
+        </div>
+      )
+    }
+
+    {
+      skills && (
+        <label class="flex items-center gap-2 text-sm">
+          <input type="checkbox" name="group_by_category" checked={skills.group_by_category} class={checkboxClass} />
+          Kelompokkan berdasarkan kategori
+        </label>
+      )
+    }
+
+    {
+      projects && (
+        <div class="flex flex-col gap-4">
+          <label class="flex items-center gap-2 text-sm">
+            <input type="checkbox" name="show_filter" checked={projects.show_filter} class={checkboxClass} />
+            Tampilkan filter kategori
+          </label>
+          <label class="flex items-center gap-2 text-sm">
+            <input type="checkbox" name="featured_only" checked={projects.featured_only} class={checkboxClass} />
+            Hanya tampilkan proyek unggulan
+          </label>
+          <Field id="limit" label="Jumlah maksimal proyek">
+            <input id="limit" name="limit" type="number" min="1" max="50" value={projects.limit} class={inputClass} />
+          </Field>
+          <Field
+            id="layout"
+            label="Tata letak"
+            hint="Carousel menggeser per halaman: 3 kartu di desktop, 2 di tablet, 1 di ponsel."
+          >
+            <select id="layout" name="layout" class={inputClass}>
+              <option value="carousel" selected={projects.layout === 'carousel'}>Carousel</option>
+              <option value="grid" selected={projects.layout === 'grid'}>Grid</option>
+            </select>
+          </Field>
+        </div>
+      )
+    }
+
+    {
+      experience && (
+        <label class="flex items-center gap-2 text-sm">
+          <input type="checkbox" name="timeline" checked={experience.timeline} class={checkboxClass} />
+          Tampilkan sebagai garis waktu
+        </label>
+      )
+    }
+
+    {
+      contact && (
+        <div class="flex flex-col gap-4">
+          <Field id="body" label="Ajakan">
+            <textarea id="body" name="body" rows="4" class={inputClass}>{contact.body ?? ''}</textarea>
+          </Field>
+          <Field id="email" label="Email">
+            <input id="email" name="email" type="email" value={contact.email ?? ''} class={inputClass} />
+          </Field>
+          <Field id="cta_label" label="Label tombol">
+            <input id="cta_label" name="cta_label" type="text" value={contact.cta_label} class={inputClass} />
+          </Field>
+        </div>
+      )
+    }
+
+    {
+      custom && (
+        <MarkdownEditor client:load name="body" label="Isi (Markdown)" value={custom.body ?? ''} />
+      )
+    }
+
+    <div class="flex gap-3">
+      <button type="submit" class={buttonPrimary}>Simpan</button>
+      <a href="/admin/sections" class={buttonGhost}>Batal</a>
+    </div>
+  </form>
+</AdminLayout>

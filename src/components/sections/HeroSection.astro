@@ -1,0 +1,41 @@
+---
+import HeroIntro from './HeroIntro.tsx';
+import type { HeroContent } from '../../lib/schemas';
+
+interface Props {
+  id: string;
+  content: HeroContent;
+}
+
+const { id, content } = Astro.props;
+---
+
+<section id={id} class="border-b border-border py-14 sm:py-20 lg:py-28">
+  <div class="container-page grid items-center gap-8 md:grid-cols-[1.2fr_1fr] md:gap-12">
+    <HeroIntro
+      client:load
+      greeting={content.greeting}
+      name={content.name}
+      role={content.role}
+      description={content.description}
+      ctaPrimary={content.cta_primary}
+      ctaSecondary={content.cta_secondary}
+    />
+
+    {
+      content.image_url ? (
+        <div class="order-first mx-auto w-40 sm:w-48 md:order-none md:w-full md:max-w-sm">
+          <img
+            src={content.image_url}
+            alt={`Foto ${content.name}`}
+            width="480"
+            height="480"
+            loading="eager"
+            decoding="async"
+            class="aspect-square w-full rounded-lg border border-border object-cover"
+          />
+        </div>
+      ) : null
+    }
+  </div>
+</section>

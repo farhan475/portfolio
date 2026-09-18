@@ -1,0 +1,31 @@
+---
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import FlashMessage from '../../../components/admin/FlashMessage.astro';
+import ProjectForm from '../../../components/admin/ProjectForm.astro';
+import { parseProjectForm } from '../../../lib/project-form';
+import { backTo, zodMessage } from '../../../lib/form';
+
+const supabase = Astro.locals.supabase!;
+
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  const parsed = parseProjectForm(form);
+
+  if (!parsed.success) {
+    return Astro.redirect(backTo('/admin/projects/new', { error: zodMessage(parsed.error) }), 303);
+  }
+
+  const { error } = await supabase.from('projects').insert(parsed.data);
+  if (error) {
+    const message = error.code === '23505' ? `Slug "${parsed.data.slug}" sudah dipakai proyek lain.` : error.message;
+    return Astro.redirect(backTo('/admin/projects/new', { error: message }), 303);
+  }
+
+  return Astro.redirect(backTo('/admin/projects', { ok: `Proyek "${parsed.data.title}" dibuat.` }), 303);
+}
+---
+
+<AdminLayout title="Tambah proyek" description="Slug dibuat otomatis dari judul dan bisa diubah.">
+  <FlashMessage />
+  <ProjectForm submitLabel="Simpan proyek" />
+</AdminLayout>

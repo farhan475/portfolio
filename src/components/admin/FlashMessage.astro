@@ -1,0 +1,20 @@
+---
+/** Menampilkan pesan sukses atau error dari query string ?ok= / ?error=. */
+const ok = Astro.url.searchParams.get('ok');
+const error = Astro.url.searchParams.get('error');
+---
+
+{
+  ok && (
+    <p role="status" class="mb-6 rounded-md border border-green-500/40 bg-green-500/10 px-3 py-2 text-sm text-green-400">
+      {ok}
+    </p>
+  )
+}
+{
+  error && (
+    <p role="alert" class="mb-6 rounded-md border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-400">
+      {error}
+    </p>
+  )
+}

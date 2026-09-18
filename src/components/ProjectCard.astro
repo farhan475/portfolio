@@ -1,0 +1,129 @@
+---
+import { ArrowUpRight } from 'lucide-react';
+import Icon from './ui/Icon.astro';
+import type { Project } from '../lib/queries';
+
+interface Props {
+  project: Project;
+}
+
+const { project } = Astro.props;
+---
+
+<article
+  class="flex h-full min-w-0 flex-col overflow-hidden rounded-lg border border-border bg-surface transition-colors hover:border-primary"
+  data-category={project.category ?? ''}
+>
+  {
+    project.image_url ? (
+      <a href={`/projects/${project.slug}`} tabindex="-1" aria-hidden="true">
+        <img
+          src={project.image_url}
+          alt=""
+          width="800"
+          height="500"
+          loading="lazy"
+          decoding="async"
+          class="aspect-[8/5] w-full object-cover"
+        />
+      </a>
+    ) : null
+  }
+
+  <div class="flex flex-1 flex-col gap-3 p-4 sm:p-5">
+    <div class="flex items-start justify-between gap-3">
+      <h3 class="min-w-0 text-base font-semibold break-words sm:text-lg">
+        <a href={`/projects/${project.slug}`} class="after:absolute after:inset-0 hover:text-primary">
+          {project.title}
+        </a>
+      </h3>
+      {project.category ? <span class="shrink-0 text-xs text-muted">{project.category}</span> : null}
+    </div>
+
+    <p class="text-sm leading-relaxed text-muted">{project.description}</p>
+
+    {
+      project.tech_stack.length > 0 ? (
+        <ul class="mt-auto flex flex-wrap gap-1.5 pt-2">
+          {project.tech_stack.map((tech) => (
+            <li class="rounded border border-border px-2 py-0.5 text-xs text-muted">{tech}</li>
+          ))}
+        </ul>
+      ) : null
+    }
+
+    <div class="relative z-10 flex items-center gap-3 pt-1">
+      {
+        project.github_url ? (
+          <a
+            href={project.github_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            class="inline-flex items-center gap-1 text-xs text-muted hover:text-foreground"
+          >
+            <Icon name="github" size={14} />
+            Kode
+          </a>
+        ) : null
+      }
+      {
+        project.demo_url ? (
+          <a
+            href={project.demo_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            class="inline-flex items-center gap-1 text-xs text-muted hover:text-foreground"
+          >
+            <ArrowUpRight size={14} aria-hidden="true" />
+            Demo
+          </a>
+        ) : null
+      }
+    </div>
+  </div>
+</article>
+
+<style>
+  article {
+    position: relative;
+    transition:
+      transform 200ms ease,
+      border-color 200ms ease;
+  }
+
+  article img {
+    transition: transform 300ms ease;
+  }
+
+  /*
+   * Angkatan kartu dan zoom gambar hanya untuk penunjuk yang benar-benar bisa
+   * hover; di layar sentuh keadaan :hover menempel setelah disentuh.
+   * focus-within disertakan supaya pengguna keyboard mendapat isyarat sama.
+   */
+  @media (hover: hover) {
+    article:hover {
+      transform: translateY(-3px);
+    }
+
+    article:hover img {
+      transform: scale(1.04);
+    }
+  }
+
+  article:focus-within {
+    transform: translateY(-3px);
+    border-color: var(--theme-primary);
+  }
+
+  /*
+   * Aturan global sudah memangkas durasi transisi, tapi transform-nya sendiri
+   * masih akan diterapkan seketika. Di sini geraknya dimatikan sepenuhnya.
+   */
+  @media (prefers-reduced-motion: reduce) {
+    article:hover,
+    article:focus-within,
+    article:hover img {
+      transform: none;
+    }
+  }
+</style>

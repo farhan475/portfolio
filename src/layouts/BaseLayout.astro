@@ -1,0 +1,232 @@
+---
+import '../styles/global.css';
+import { googleFontsHref } from '../lib/utils';
+import { DEFAULT_THEME } from '../lib/schemas';
+import type { SiteSettings } from '../lib/queries';
+
+interface Props {
+  settings: SiteSettings | null;
+  /** Judul halaman. Kosong berarti memakai site_title apa adanya. */
+  title?: string;
+  description?: string;
+  image?: string | null;
+  /** Halaman admin dan error tidak boleh diindeks. */
+  noindex?: boolean;
+  bodyClass?: string;
+}
+
+const { settings, title, description, image, noindex = false, bodyClass } = Astro.props;
+
+const theme = settings?.theme ?? DEFAULT_THEME;
+const siteTitle = settings?.site_title ?? 'Portfolio';
+const pageTitle = title ? `${title} | ${siteTitle}` : siteTitle;
+const metaDescription = description ?? settings?.meta_description ?? '';
+const ogImage = image ?? settings?.og_image_url ?? null;
+const canonical = new URL(Astro.url.pathname, Astro.site ?? Astro.url.origin).toString();
+const fontsHref = googleFontsHref([theme.font_heading, theme.font_body]);
+const defaultMode = theme.default_mode;
+
+/** Bawaan situs "ikut perangkat" tidak bisa diketahui di server. */
+const followsSystem = defaultMode === 'system';
+
+/**
+ * Mode yang dirender server. Dua peran sekaligus: jaring pengaman untuk
+ * pengunjung tanpa JavaScript, dan fallback bila browser tidak mengenal
+ * prefers-color-scheme. Dipakai bersama HTML dan script supaya tidak ada
+ * dua sumber kebenaran.
+ */
+const fallbackMode = defaultMode === 'light' ? 'light' : 'dark';
+
+/** Saat bawaan situs bukan "ikut perangkat", tidak ada pilihan bernama system. */
+const ssrPreference = followsSystem ? 'system' : defaultMode;
+
+const rootStyle = [
+  `--primary-base:${theme.primary}`,
+  `--accent-base:${theme.accent}`,
+  `--base-dark:${theme.background}`,
+  `--base-light:${theme.foreground}`,
+  `--theme-font-heading:'${theme.font_heading}'`,
+  `--theme-font-body:'${theme.font_body}'`,
+].join(';');
+---
+
+{/*
+  Kelas mode awal dipasang di server agar halaman tetap terbaca tanpa
+  JavaScript. Script inline di bawah langsung memperbaikinya sesuai preferensi
+  perangkat sebelum body dicat. `pref-system` adalah keadaan bawaan: ikut
+  sistem selama pengguna belum menekan tombol mode.
+*/}
+<html lang="id" class={`${fallbackMode} pref-${ssrPreference}`} style={rootStyle}>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{pageTitle}</title>
+    {metaDescription && <meta name="description" content={metaDescription} />}
+    <link rel="canonical" href={canonical} />
+    {noindex && <meta name="robots" content="noindex, nofollow" />}
+
+    <link rel="icon" href={settings?.favicon_url ?? '/favicon.svg'} />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content={siteTitle} />
+    <meta property="og:title" content={pageTitle} />
+    {metaDescription && <meta property="og:description" content={metaDescription} />}
+    <meta property="og:url" content={canonical} />
+    {ogImage && <meta property="og:image" content={ogImage} />}
+
+    <meta name="twitter:card" content={ogImage ? 'summary_large_image' : 'summary'} />
+    <meta name="twitter:title" content={pageTitle} />
+    {metaDescription && <meta name="twitter:description" content={metaDescription} />}
+    {ogImage && <meta name="twitter:image" content={ogImage} />}
+
+    {fontsHref && (
+      <>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link rel="stylesheet" href={fontsHref} />
+      </>
+    )}
+
+    {/*
+      Dijalankan sebelum body dicat supaya mode tidak berkedip saat load.
+      Urutan penentuan mode:
+        1. pilihan eksplisit pengguna dari tombol mode (localStorage)
+        2. prefers-color-scheme milik perangkat
+        3. fallbackMode, dipakai bila default_mode situs memang memaksa
+           satu mode, atau bila browser tak mengenal prefers-color-scheme
+      Selain memasang kelas, script ini menaruh window.__theme supaya
+      ThemeToggle tidak perlu mengulang logika yang sama.
+    */}
+    <script is:inline define:vars={{ followsSystem, fallbackMode }}>
+      (() => {
+        const root = document.documentElement;
+        const darkQuery = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+
+        /** 'light' | 'dark' bila pengguna sudah memilih sendiri, null bila ikut sistem. */
+        function readStored() {
+          try {
+            const value = window.localStorage.getItem('theme');
+            return value === 'light' || value === 'dark' ? value : null;
+          } catch {
+            return null;
+          }
+        }
+
+        // Disalin ke memori supaya tombol tetap bekerja walau localStorage
+        // diblokir, misalnya di mode privat. Tanpa ini pilihan pengguna akan
+        // langsung hilang lagi begitu apply() membacanya ulang.
+        let override = readStored();
+
+        /**
+         * null bila perangkat tidak menyatakan preferensi. Browser lama
+         * menjawab false untuk kueri yang tak dikenalnya, jadi 'dark' yang
+         * false belum tentu berarti terang. Karena itu keduanya diperiksa.
+         */
+        function systemMode() {
+          if (!darkQuery) return null;
+          if (darkQuery.matches) return 'dark';
+          return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : null;
+        }
+
+        /**
+         * Urutan siklus tombol. 'system' hanya ikut bila bawaan situs memang
+         * mengikuti perangkat; kalau tidak, keadaan itu tidak punya hasil yang
+         * berbeda dari salah satu mode tetap, jadi cuma akan membingungkan.
+         */
+        function order() {
+          return followsSystem ? ['system', 'light', 'dark'] : ['light', 'dark'];
+        }
+
+        function nextOf(preference) {
+          const list = order();
+          return list[(list.indexOf(preference) + 1) % list.length];
+        }
+
+        /** Tanpa pilihan tersimpan, preferensi sama dengan bawaan situs. */
+        function preferenceOf() {
+          return override || (followsSystem ? 'system' : fallbackMode);
+        }
+
+        function apply() {
+          const preference = preferenceOf();
+          const mode = override || (followsSystem ? systemMode() || fallbackMode : fallbackMode);
+
+          root.classList.toggle('light', mode === 'light');
+          root.classList.toggle('dark', mode !== 'light');
+
+          // Kelas terpisah dari light/dark: yang ini menyatakan pilihan
+          // pengguna, dipakai ThemeToggle untuk memilih ikon tanpa JavaScript.
+          root.classList.toggle('pref-system', preference === 'system');
+          root.classList.toggle('pref-light', preference === 'light');
+          root.classList.toggle('pref-dark', preference === 'dark');
+
+          window.dispatchEvent(
+            new CustomEvent('theme:change', {
+              detail: {
+                preference: preference,
+                resolved: mode === 'light' ? 'light' : 'dark',
+                next: nextOf(preference),
+              },
+            }),
+          );
+        }
+
+        apply();
+
+        const api = {
+          preference: preferenceOf,
+          resolved: function () {
+            return root.classList.contains('light') ? 'light' : 'dark';
+          },
+          set: function (preference) {
+            override = preference === 'light' || preference === 'dark' ? preference : null;
+            try {
+              if (override) window.localStorage.setItem('theme', override);
+              else window.localStorage.removeItem('theme');
+            } catch {
+              /* localStorage diblokir; pilihan hanya berlaku untuk halaman ini */
+            }
+            apply();
+          },
+          next: function () {
+            return nextOf(preferenceOf());
+          },
+          cycle: function () {
+            api.set(nextOf(preferenceOf()));
+          },
+        };
+
+        window.__theme = api;
+
+        // Perangkat berganti mode saat halaman terbuka. Diikuti hanya bila
+        // bawaan situs memang ikut perangkat DAN pengguna belum memilih
+        // sendiri. Tanpa penjaga followsSystem, listener ini cuma menghitung
+        // ulang nilai yang sama dan menembakkan event theme:change palsu.
+        if (followsSystem && darkQuery) {
+          const onSystemChange = () => {
+            if (!override) apply();
+          };
+          if (darkQuery.addEventListener) darkQuery.addEventListener('change', onSystemChange);
+          else if (darkQuery.addListener) darkQuery.addListener(onSystemChange);
+        }
+
+        // Pilihan diubah di tab lain. key null terjadi saat localStorage.clear().
+        window.addEventListener('storage', (event) => {
+          if (event.key !== 'theme' && event.key !== null) return;
+          override = readStored();
+          apply();
+        });
+      })();
+    </script>
+    <slot name="head" />
+  </head>
+  <body class={bodyClass}>
+    <a
+      href="#konten"
+      class="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded focus:bg-primary focus:px-4 focus:py-2 focus:text-background"
+    >
+      Lompat ke konten
+    </a>
+    <slot />
+  </body>
+</html>

@@ -1,0 +1,89 @@
+---
+import HeroSection from './sections/HeroSection.astro';
+import AboutSection from './sections/AboutSection.astro';
+import SkillsSection from './sections/SkillsSection.astro';
+import ProjectsSection from './sections/ProjectsSection.astro';
+import ExperienceSection from './sections/ExperienceSection.astro';
+import ContactSection from './sections/ContactSection.astro';
+import CustomSection from './sections/CustomSection.astro';
+import type { Experience, Project, Section, Skill } from '../lib/queries';
+
+/**
+ * Merender section sesuai urutan yang diberikan. Urutan dan visibilitas
+ * ditentukan tabel `sections`, bukan komponen ini.
+ */
+interface Props {
+  sections: Section[];
+  skills: Skill[];
+  projects: Project[];
+  experiences: Experience[];
+}
+
+const { sections, skills, projects, experiences } = Astro.props;
+---
+
+{
+  sections.map((section) => {
+    switch (section.type) {
+      case 'hero':
+        return <HeroSection id={section.key} content={section.content} />;
+      case 'about':
+        return (
+          <AboutSection
+            id={section.key}
+            title={section.title}
+            subtitle={section.subtitle}
+            content={section.content}
+          />
+        );
+      case 'skills':
+        return (
+          <SkillsSection
+            id={section.key}
+            title={section.title}
+            subtitle={section.subtitle}
+            content={section.content}
+            skills={skills}
+          />
+        );
+      case 'projects':
+        return (
+          <ProjectsSection
+            id={section.key}
+            title={section.title}
+            subtitle={section.subtitle}
+            content={section.content}
+            projects={projects}
+          />
+        );
+      case 'experience':
+        return (
+          <ExperienceSection
+            id={section.key}
+            title={section.title}
+            subtitle={section.subtitle}
+            content={section.content}
+            experiences={experiences}
+          />
+        );
+      case 'contact':
+        return (
+          <ContactSection
+            id={section.key}
+            title={section.title}
+            subtitle={section.subtitle}
+            content={section.content}
+          />
+        );
+      case 'custom':
+        return (
+          <CustomSection
+            id={section.key}
+            title={section.title}
+            subtitle={section.subtitle}
+            content={section.content}
+          />
+        );
+    }
+  })
+}

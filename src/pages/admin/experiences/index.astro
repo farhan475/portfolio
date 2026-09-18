@@ -1,0 +1,106 @@
+---
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import FlashMessage from '../../../components/admin/FlashMessage.astro';
+import Field from '../../../components/admin/Field.astro';
+import SortableList from '../../../components/admin/SortableList.tsx';
+import { getExperiences } from '../../../lib/queries';
+import { experienceFormSchema } from '../../../lib/schemas';
+import { backTo, formBool, formInt, formRequired, formText, zodMessage } from '../../../lib/form';
+import { buttonPrimary, checkboxClass, inputClass } from '../../../lib/ui';
+
+const supabase = Astro.locals.supabase!;
+
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  const parsed = experienceFormSchema.safeParse({
+    role: formRequired(form, 'role'),
+    company: formRequired(form, 'company'),
+    company_url: formText(form, 'company_url'),
+    location: formText(form, 'location'),
+    start_date: formRequired(form, 'start_date'),
+    end_date: formText(form, 'end_date'),
+    description: formText(form, 'description'),
+    sort_order: formInt(form, 'sort_order', 0),
+    is_visible: formBool(form, 'is_visible'),
+  });
+
+  if (!parsed.success) {
+    return Astro.redirect(backTo('/admin/experiences', { error: zodMessage(parsed.error) }), 303);
+  }
+
+  const { error } = await supabase.from('experiences').insert(parsed.data);
+  return Astro.redirect(
+    backTo(
+      '/admin/experiences',
+      error ? { error: error.message } : { ok: `Pengalaman "${parsed.data.role}" ditambahkan.` },
+    ),
+    303,
+  );
+}
+
+const experiences = await getExperiences(supabase, { includeHidden: true });
+
+const entries = experiences.map((exp) => ({
+  id: exp.id,
+  title: exp.role,
+  subtitle: exp.company,
+  href: `/admin/experiences/${exp.id}`,
+  enabled: exp.is_visible,
+}));
+---
+
+<AdminLayout title="Pengalaman" description="Kelola daftar pengalaman kerja, urutan, dan tampil atau tidaknya.">
+  <FlashMessage />
+
+  <SortableList
+    client:load
+    items={entries}
+    table="experiences"
+    toggle={{ field: 'is_visible', labelOn: 'Tampil', labelOff: 'Disembunyikan' }}
+    deletable
+    emptyText="Belum ada pengalaman. Tambahkan lewat form di bawah."
+  />
+
+  <section class="mt-10" aria-labelledby="tambah-pengalaman">
+    <h2 id="tambah-pengalaman" class="text-lg font-semibold">Tambah pengalaman</h2>
+
+    <form method="post" class="mt-4 flex flex-col gap-4">
+      <Field id="role" label="Posisi" required>
+        <input id="role" name="role" type="text" required class={inputClass} />
+      </Field>
+
+      <Field id="company" label="Perusahaan" required>
+        <input id="company" name="company" type="text" required class={inputClass} />
+      </Field>
+
+      <Field id="company_url" label="URL Perusahaan">
+        <input id="company_url" name="company_url" type="text" class={inputClass} />
+      </Field>
+
+      <Field id="location" label="Lokasi">
+        <input id="location" name="location" type="text" class={inputClass} />
+      </Field>
+
+      <Field id="start_date" label="Tanggal mulai" required>
+        <input id="start_date" name="start_date" type="date" required class={inputClass} />
+      </Field>
+
+      <Field id="end_date" label="Tanggal selesai" hint="Kosongkan jika masih berjalan.">
+        <input id="end_date" name="end_date" type="date" class={inputClass} />
+      </Field>
+
+      <Field id="description" label="Deskripsi">
+        <textarea id="description" name="description" rows="4" class={inputClass}></textarea>
+      </Field>
+
+      <label class="flex items-center gap-2 text-sm">
+        <input type="checkbox" name="is_visible" checked class={checkboxClass} />
+        Tampilkan di situs
+      </label>
+
+      <div>
+        <button type="submit" class={buttonPrimary}>Tambah</button>
+      </div>
+    </form>
+  </section>
+</AdminLayout>

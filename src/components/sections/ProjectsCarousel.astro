@@ -1,0 +1,285 @@
+---
+import { ChevronLeft, ChevronRight } from 'lucide-react';
+import ProjectCard from '../ProjectCard.astro';
+import type { Project } from '../../lib/queries';
+
+/**
+ * Carousel proyek yang bergeser per halaman: 1 kartu di ponsel, 2 di tablet,
+ * 3 di desktop. Jumlah kartu per halaman dibaca dari CSS variable `--per-page`
+ * supaya satu sumber kebenaran dipakai bersama CSS dan skrip.
+ *
+ * Penggeseran memakai scroll-snap asli, bukan transform, jadi swipe di ponsel
+ * dan gulir trackpad tetap terasa native dan tanpa JavaScript pun kartu masih
+ * bisa digulir.
+ */
+interface Props {
+  projects: Project[];
+}
+
+const { projects } = Astro.props;
+---
+
+<div class="relative" data-carousel>
+  <ul
+    class="carousel-track"
+    data-carousel-track
+    tabindex="0"
+    role="group"
+    aria-label="Daftar proyek, geser untuk melihat lainnya"
+  >
+    {
+      projects.map((project) => (
+        <li class="carousel-slide" data-carousel-slide data-category={project.category ?? ''}>
+          <ProjectCard project={project} />
+        </li>
+      ))
+    }
+  </ul>
+
+  <div class="mt-5 flex items-center justify-between gap-4">
+    <div class="flex items-center gap-2">
+      <button
+        type="button"
+        data-carousel-prev
+        aria-label="Halaman proyek sebelumnya"
+        class="inline-flex size-10 items-center justify-center rounded-md border border-border-strong text-muted transition-colors hover:border-primary hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-border-strong disabled:hover:text-muted"
+      >
+        <ChevronLeft size={18} aria-hidden="true" />
+      </button>
+      <button
+        type="button"
+        data-carousel-next
+        aria-label="Halaman proyek berikutnya"
+        class="inline-flex size-10 items-center justify-center rounded-md border border-border-strong text-muted transition-colors hover:border-primary hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-border-strong disabled:hover:text-muted"
+      >
+        <ChevronRight size={18} aria-hidden="true" />
+      </button>
+    </div>
+
+    {/* Titik halaman dibuat skrip karena jumlahnya ikut lebar layar dan filter. */}
+    <div class="flex items-center gap-1" data-carousel-dots hidden></div>
+  </div>
+
+  <p class="sr-only" role="status" aria-live="polite" data-carousel-status></p>
+</div>
+
+<style>
+  .carousel-track {
+    /* Dibaca juga oleh skrip untuk menghitung jumlah halaman. */
+    --per-page: 1;
+    --slide-gap: 1rem;
+
+    position: relative;
+    display: flex;
+    gap: var(--slide-gap);
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x mandatory;
+    /* Ruang agar transform hover dan outline fokus tidak terpotong. */
+    padding-block: 0.5rem;
+    /* Tombol dan titik sudah jadi kendali, scrollbar hanya menambah bising. */
+    scrollbar-width: none;
+  }
+
+  .carousel-track::-webkit-scrollbar {
+    display: none;
+  }
+
+  .carousel-slide {
+    /* Lebar dihitung supaya tepat `--per-page` kartu memenuhi track. */
+    flex: 0 0 calc((100% - (var(--per-page) - 1) * var(--slide-gap)) / var(--per-page));
+    min-width: 0;
+    scroll-snap-align: start;
+  }
+
+  @media (min-width: 640px) {
+    .carousel-track {
+      --per-page: 2;
+      --slide-gap: 1.5rem;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .carousel-track {
+      --per-page: 3;
+    }
+  }
+
+  /*
+   * Titik dibuat lewat skrip, jadi tidak kebagian atribut scope Astro.
+   * `:global()` dipakai supaya gayanya tetap terpakai, tapi tetap dibatasi
+   * di dalam [data-carousel-dots].
+   */
+  [data-carousel-dots] :global(button) {
+    display: grid;
+    place-items: center;
+    /* 1.5rem memenuhi ukuran target sentuh minimum, titiknya sendiri kecil. */
+    width: 1.5rem;
+    height: 1.5rem;
+    border: 0;
+    border-radius: 9999px;
+    background: none;
+    cursor: pointer;
+  }
+
+  [data-carousel-dots] :global(button)::before {
+    content: '';
+    display: block;
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 9999px;
+    background-color: var(--theme-border-strong);
+    transition:
+      width 200ms ease,
+      background-color 200ms ease;
+  }
+
+  [data-carousel-dots] :global(button[aria-current='true'])::before {
+    width: 1.25rem;
+    background-color: var(--theme-primary);
+  }
+</style>
+
+<script>
+  for (const root of document.querySelectorAll<HTMLElement>('[data-carousel]')) {
+    const track = root.querySelector<HTMLElement>('[data-carousel-track]');
+    if (!track) continue;
+
+    const prev = root.querySelector<HTMLButtonElement>('[data-carousel-prev]');
+    const next = root.querySelector<HTMLButtonElement>('[data-carousel-next]');
+    const dots = root.querySelector<HTMLElement>('[data-carousel-dots]');
+    const status = root.querySelector<HTMLElement>('[data-carousel-status]');
+
+    // `?.` bukan hiasan: tanpa itu satu browser tanpa matchMedia mematikan
+    // seluruh carousel, termasuk tombol dan titiknya.
+    const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)') ?? null;
+
+    /** Hanya slide yang lolos filter; sisanya keluar dari layout. */
+    function slides(): HTMLElement[] {
+      return Array.from(track!.querySelectorAll<HTMLElement>('[data-carousel-slide]')).filter(
+        (slide) => !slide.hidden,
+      );
+    }
+
+    function perPage(): number {
+      const raw = Number.parseInt(getComputedStyle(track!).getPropertyValue('--per-page'), 10);
+      return Number.isFinite(raw) && raw > 0 ? raw : 1;
+    }
+
+    function pageCount(): number {
+      return Math.max(1, Math.ceil(slides().length / perPage()));
+    }
+
+    function currentPage(): number {
+      const items = slides();
+      if (items.length === 0) return 0;
+
+      // Di kedua ujung, posisi gulir dijepit browser sehingga perhitungan
+      // "slide terdekat" bisa salah satu halaman. Ujung ditangani lebih dulu.
+      if (track!.scrollLeft <= 2) return 0;
+      if (track!.scrollWidth - track!.clientWidth - track!.scrollLeft <= 2) return pageCount() - 1;
+
+      let nearest = 0;
+      let shortest = Number.POSITIVE_INFINITY;
+      items.forEach((item, index) => {
+        const distance = Math.abs(item.offsetLeft - track!.scrollLeft);
+        if (distance < shortest) {
+          shortest = distance;
+          nearest = index;
+        }
+      });
+
+      return Math.min(Math.floor(nearest / perPage()), pageCount() - 1);
+    }
+
+    function goTo(page: number): void {
+      const items = slides();
+      const clamped = Math.max(0, Math.min(page, pageCount() - 1));
+      const target = items[clamped * perPage()];
+      if (!target) return;
+
+      // Track berposisi relative, jadi offsetLeft slide sama dengan scrollLeft
+      // yang dibutuhkan untuk menempelkannya ke tepi kiri.
+      track!.scrollTo({ left: target.offsetLeft, behavior: reduceMotion?.matches ? 'auto' : 'smooth' });
+    }
+
+    function buildDots(count: number): void {
+      if (!dots || dots.childElementCount === count) return;
+
+      const buttons = Array.from({ length: count }, (_, index) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.setAttribute('aria-label', `Ke halaman ${index + 1} dari ${count}`);
+        button.addEventListener('click', () => goTo(index));
+        return button;
+      });
+
+      dots.replaceChildren(...buttons);
+    }
+
+    let announced = -1;
+
+    function sync(): void {
+      const count = pageCount();
+      const page = currentPage();
+      const single = count <= 1;
+
+      buildDots(count);
+      if (dots) {
+        dots.hidden = single;
+        Array.from(dots.children).forEach((dot, index) => {
+          // aria-current hanya bermakna saat ada, bukan saat bernilai "false".
+          if (index === page) dot.setAttribute('aria-current', 'true');
+          else dot.removeAttribute('aria-current');
+        });
+      }
+
+      if (prev) {
+        prev.hidden = single;
+        prev.disabled = page <= 0;
+      }
+      if (next) {
+        next.hidden = single;
+        next.disabled = page >= count - 1;
+      }
+
+      // Diumumkan hanya saat halaman benar-benar berganti, supaya gulir
+      // tidak membanjiri pembaca layar.
+      if (status && page !== announced) {
+        announced = page;
+        status.textContent = single ? '' : `Halaman ${page + 1} dari ${count}`;
+      }
+    }
+
+    prev?.addEventListener('click', () => goTo(currentPage() - 1));
+    next?.addEventListener('click', () => goTo(currentPage() + 1));
+
+    track.addEventListener('keydown', (event) => {
+      if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+      event.preventDefault();
+      goTo(currentPage() + (event.key === 'ArrowRight' ? 1 : -1));
+    });
+
+    let frame = 0;
+    function schedule(): void {
+      if (frame) return;
+      frame = requestAnimationFrame(() => {
+        frame = 0;
+        sync();
+      });
+    }
+
+    track.addEventListener('scroll', schedule, { passive: true });
+    window.addEventListener('resize', schedule);
+
+    // Filter kategori mengubah jumlah slide, jadi halaman dihitung ulang
+    // dan gulir dikembalikan ke awal.
+    root.addEventListener('carousel:refresh', () => {
+      track.scrollTo({ left: 0, behavior: 'auto' });
+      announced = -1;
+      sync();
+    });
+
+    sync();
+  }
+</script>

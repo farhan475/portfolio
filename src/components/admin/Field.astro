@@ -1,0 +1,20 @@
+---
+/** Bungkus label + kontrol form supaya gaya konsisten di semua halaman admin. */
+interface Props {
+  id: string;
+  label: string;
+  hint?: string;
+  required?: boolean;
+}
+
+const { id, label, hint, required = false } = Astro.props;
+---
+
+<div>
+  <label for={id} class="mb-1.5 block text-sm font-medium">
+    {label}
+    {required && <span class="text-red-400" aria-hidden="true">*</span>}
+  </label>
+  <slot />
+  {hint && <p class="mt-1.5 text-xs text-muted">{hint}</p>}
+</div>
