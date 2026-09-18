@@ -84,17 +84,14 @@ const rootStyle = [
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
         {/*
-          Stylesheet ini sebelumnya memblokir render selama 833ms dan menahan
-          FCP di 1.8s. `media="print"` membuat browser mengunduhnya tanpa
-          menunggunya untuk mengecat, lalu onload memindahkannya ke semua
-          media. `preload` menjaga prioritas unduh tetap tinggi supaya jeda
-          memakai font cadangan sesingkat mungkin, jadi risiko pergeseran
-          layout kecil. URL-nya sudah memakai display=swap, sehingga teks
-          tidak pernah tak terlihat.
+          Sengaja dibiarkan memblokir render. Versi non-blocking pernah dicoba
+          (preload + media="print" lalu onload): FCP memang membaik dari 1.8s
+          ke 1.4s, tapi halaman lalu dicat ulang saat Inter tiba dan Speed
+          Index jatuh dari 1.8s ke 5.4s. Keduanya berbobot 10%, jadi skor
+          Performance justru turun dari 97 ke 94. Mengecat sekali dengan font
+          yang benar lebih baik daripada mengecat dua kali.
         */}
-        <link rel="preload" as="style" href={fontsHref} />
-        <link rel="stylesheet" href={fontsHref} media="print" onload="this.media='all'" />
-        <noscript><link rel="stylesheet" href={fontsHref} /></noscript>
+        <link rel="stylesheet" href={fontsHref} />
       </>
     )}
 
