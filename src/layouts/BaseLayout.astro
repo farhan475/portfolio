@@ -1,6 +1,7 @@
 ---
 import '../styles/global.css';
 import { googleFontsHref } from '../lib/utils';
+import { fontFaceCss, preloadFonts, remoteFamilies } from '../lib/fonts';
 import { DEFAULT_THEME } from '../lib/schemas';
 import type { SiteSettings } from '../lib/queries';
 
@@ -23,7 +24,13 @@ const pageTitle = title ? `${title} | ${siteTitle}` : siteTitle;
 const metaDescription = description ?? settings?.meta_description ?? '';
 const ogImage = image ?? settings?.og_image_url ?? null;
 const canonical = new URL(Astro.url.pathname, Astro.site ?? Astro.url.origin).toString();
-const fontsHref = googleFontsHref([theme.font_heading, theme.font_body]);
+const themeFonts = [theme.font_heading, theme.font_body];
+
+// Font yang berkasnya kita bundel disajikan dari origin sendiri; sisanya
+// tetap dari Google. Lihat src/lib/fonts.ts untuk alasannya.
+const localFontCss = fontFaceCss(themeFonts);
+const localFontPreloads = preloadFonts(themeFonts);
+const fontsHref = googleFontsHref(remoteFamilies(themeFonts));
 const defaultMode = theme.default_mode;
 
 /** Bawaan situs "ikut perangkat" tidak bisa diketahui di server. */
@@ -79,6 +86,16 @@ const rootStyle = [
     {metaDescription && <meta name="twitter:description" content={metaDescription} />}
     {ogImage && <meta name="twitter:image" content={ogImage} />}
 
+    {/*
+      Font lokal: preload supaya berkasnya sudah diunduh bersamaan dengan
+      HTML, dan @font-face inline supaya tidak menambah request di jalur
+      kritis. Keduanya sesama origin, jadi tanpa DNS maupun TLS tambahan.
+    */}
+    {localFontPreloads.map((href) => (
+      <link rel="preload" href={href} as="font" type="font/woff2" crossorigin />
+    ))}
+    {localFontCss && <style is:inline set:html={localFontCss} />}
+
     {fontsHref && (
       <>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -86,10 +103,12 @@ const rootStyle = [
         {/*
           Sengaja dibiarkan memblokir render. Versi non-blocking pernah dicoba
           (preload + media="print" lalu onload): FCP memang membaik dari 1.8s
-          ke 1.4s, tapi halaman lalu dicat ulang saat Inter tiba dan Speed
-          Index jatuh dari 1.8s ke 5.4s. Keduanya berbobot 10%, jadi skor
-          Performance justru turun dari 97 ke 94. Mengecat sekali dengan font
-          yang benar lebih baik daripada mengecat dua kali.
+          ke 1.4s, tapi halaman lalu dicat ulang saat font tiba dan Speed Index
+          jatuh dari 1.8s ke 5.4s. Keduanya berbobot 10%, jadi skor Performance
+          justru turun dari 97 ke 94. Mengecat sekali dengan font yang benar
+          lebih baik daripada mengecat dua kali.
+
+          Jalur ini hanya dipakai font yang tidak kita bundel.
         */}
         <link rel="stylesheet" href={fontsHref} />
       </>

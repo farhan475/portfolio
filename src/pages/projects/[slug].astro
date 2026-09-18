@@ -25,7 +25,7 @@ if (!project) {
   return Astro.rewrite('/404');
 }
 
-Astro.response.headers.set('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300');
+Astro.response.headers.set('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=86400');
 
 const body = await renderMarkdown(project.content);
 ---
