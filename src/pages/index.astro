@@ -39,9 +39,14 @@ if (supabase) {
     getSocialLinks(supabase),
   ]);
 }
+
+// Hero adalah satu-satunya section yang gambarnya berada di atas lipatan, jadi
+// hanya itu yang layak diprioritaskan. Diambil dari data, bukan dihardcode.
+const heroSection = sections.find((section) => section.type === 'hero');
+const heroImage = heroSection?.type === 'hero' ? heroSection.content.image_url : null;
 ---
 
-<BaseLayout settings={settings}>
+<BaseLayout settings={settings} preloadImage={heroImage}>
   <Navbar settings={settings} />
   <main id="konten">
     {

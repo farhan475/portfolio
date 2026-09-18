@@ -13,10 +13,15 @@ interface Props {
   image?: string | null;
   /** Halaman admin dan error tidak boleh diindeks. */
   noindex?: boolean;
+  /**
+   * Gambar yang hampir pasti jadi elemen LCP halaman ini. Diberitahukan di
+   * <head> supaya browser mulai mengunduhnya tanpa menunggu <body> diparse.
+   */
+  preloadImage?: string | null;
   bodyClass?: string;
 }
 
-const { settings, title, description, image, noindex = false, bodyClass } = Astro.props;
+const { settings, title, description, image, noindex = false, preloadImage, bodyClass } = Astro.props;
 
 const theme = settings?.theme ?? DEFAULT_THEME;
 const siteTitle = settings?.site_title ?? 'Portfolio';
@@ -31,6 +36,21 @@ const themeFonts = [theme.font_heading, theme.font_body];
 const localFontCss = fontFaceCss(themeFonts);
 const localFontPreloads = preloadFonts(themeFonts);
 const fontsHref = googleFontsHref(remoteFamilies(themeFonts));
+/**
+ * Gambar LCP sering berada di origin lain (Storage Supabase, layanan
+ * placeholder). Tanpa preconnect, browser baru membuka DNS dan TLS ke sana
+ * setelah menemukan tag <img>, dan LCP menunggu seluruh rangkaian itu.
+ */
+let preloadImageOrigin: string | null = null;
+if (preloadImage) {
+  try {
+    const parsed = new URL(preloadImage, Astro.url.origin);
+    if (parsed.origin !== Astro.url.origin) preloadImageOrigin = parsed.origin;
+  } catch {
+    /* URL relatif yang tidak bisa diparse: tidak perlu preconnect */
+  }
+}
+
 const defaultMode = theme.default_mode;
 
 /** Bawaan situs "ikut perangkat" tidak bisa diketahui di server. */
@@ -85,6 +105,9 @@ const rootStyle = [
     <meta name="twitter:title" content={pageTitle} />
     {metaDescription && <meta name="twitter:description" content={metaDescription} />}
     {ogImage && <meta name="twitter:image" content={ogImage} />}
+
+    {preloadImageOrigin && <link rel="preconnect" href={preloadImageOrigin} crossorigin />}
+    {preloadImage && <link rel="preload" href={preloadImage} as="image" fetchpriority="high" />}
 
     {/*
       Font lokal: preload supaya berkasnya sudah diunduh bersamaan dengan
