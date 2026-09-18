@@ -1,0 +1,130 @@
+---
+import type { Cta } from '../../lib/schemas';
+
+/**
+ * Dulu React island dengan framer-motion. Animasinya hanya sekali muncul saat
+ * halaman dibuka, jadi tidak sepadan dengan biaya mengirim React + React DOM +
+ * framer-motion (42KB, 65 KiB di antaranya tak terpakai) ke setiap pengunjung.
+ * Versi CSS ini juga mulai lebih cepat karena tidak menunggu hidrasi.
+ */
+interface Props {
+  greeting?: string | null;
+  name: string;
+  role?: string | null;
+  description?: string | null;
+  ctaPrimary?: Cta | null;
+  ctaSecondary?: Cta | null;
+}
+
+const { greeting, name, role, description, ctaPrimary, ctaSecondary } = Astro.props;
+---
+
+<div class="hero-intro min-w-0 max-w-xl">
+  {
+    greeting ? (
+      <p class="hero-fade mb-3 text-sm font-medium tracking-wide text-primary uppercase">{greeting}</p>
+    ) : null
+  }
+
+  {/*
+    Judul sengaja tidak memudar, hanya naik. Ia elemen terbesar di halaman
+    sehingga menentukan LCP, dan memulainya dari opacity 0 berarti LCP baru
+    tercatat setelah animasinya jalan. Transform tidak memengaruhi layout,
+    jadi CLS tetap 0.
+  */}
+  <h1 class="hero-rise text-3xl font-semibold break-words sm:text-4xl md:text-5xl lg:text-6xl">
+    {name}
+  </h1>
+
+  {role ? <p class="hero-fade mt-3 text-lg text-accent sm:text-xl md:text-2xl">{role}</p> : null}
+
+  {
+    description ? (
+      <p class="hero-fade mt-4 text-sm leading-relaxed text-muted sm:mt-5 sm:text-base">{description}</p>
+    ) : null
+  }
+
+  {
+    ctaPrimary || ctaSecondary ? (
+      <div class="hero-fade mt-7 flex flex-wrap gap-3 sm:mt-8">
+        {ctaPrimary ? (
+          <a
+            href={ctaPrimary.href}
+            class="grow rounded-md bg-primary px-5 py-3 text-center text-sm font-medium text-background wrap-anywhere transition-opacity hover:opacity-90 sm:grow-0 sm:py-2.5"
+          >
+            {ctaPrimary.label}
+          </a>
+        ) : null}
+        {ctaSecondary ? (
+          <a
+            href={ctaSecondary.href}
+            class="grow rounded-md border border-border-strong px-5 py-3 text-center text-sm font-medium wrap-anywhere transition-colors hover:border-primary sm:grow-0 sm:py-2.5"
+          >
+            {ctaSecondary.label}
+          </a>
+        ) : null}
+      </div>
+    ) : null
+  }
+</div>
+
+<style>
+  /*
+   * Jeda diberikan lewat nth-child, bukan nilai tetap per elemen. Sapaan,
+   * peran, deskripsi, dan tombol semuanya opsional; kalau jedanya dipatok
+   * per elemen, isian yang kosong akan meninggalkan lubang di urutannya.
+   * Angka 0.08s dan durasi 0.45s sama dengan versi framer-motion sebelumnya.
+   */
+  .hero-intro > * {
+    animation-duration: 0.45s;
+    animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+    animation-fill-mode: both;
+  }
+
+  .hero-intro > *:nth-child(1) { animation-delay: 0.05s; }
+  .hero-intro > *:nth-child(2) { animation-delay: 0.13s; }
+  .hero-intro > *:nth-child(3) { animation-delay: 0.21s; }
+  .hero-intro > *:nth-child(4) { animation-delay: 0.29s; }
+  .hero-intro > *:nth-child(5) { animation-delay: 0.37s; }
+
+  .hero-intro > .hero-fade {
+    animation-name: hero-fade-in;
+  }
+
+  .hero-intro > .hero-rise {
+    animation-name: hero-rise;
+  }
+
+  @keyframes hero-fade-in {
+    from {
+      opacity: 0;
+      transform: translateY(12px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  /* Tanpa opacity: judul harus sudah terlihat pada cat pertama. */
+  @keyframes hero-rise {
+    from {
+      transform: translateY(12px);
+    }
+    to {
+      transform: none;
+    }
+  }
+
+  /*
+   * Aturan global memangkas animation-duration jadi 0.01ms, tapi TIDAK
+   * memangkas animation-delay. Tanpa blok ini, pengguna yang meminta
+   * pengurangan gerak justru menatap teks tak terlihat selama 0,37 detik.
+   * Mematikan animation-name membuat elemen langsung tampil apa adanya.
+   */
+  @media (prefers-reduced-motion: reduce) {
+    .hero-intro > * {
+      animation-name: none;
+    }
+  }
+</style>

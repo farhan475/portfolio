@@ -1,5 +1,5 @@
 ---
-import HeroIntro from './HeroIntro.tsx';
+import HeroIntro from './HeroIntro.astro';
 import type { HeroContent } from '../../lib/schemas';
 
 interface Props {
@@ -13,7 +13,6 @@ const { id, content } = Astro.props;
 <section id={id} class="border-b border-border py-14 sm:py-20 lg:py-28">
   <div class="container-page grid items-center gap-8 md:grid-cols-[1.2fr_1fr] md:gap-12">
     <HeroIntro
-      client:load
       greeting={content.greeting}
       name={content.name}
       role={content.role}
