@@ -34,6 +34,24 @@ export default function HeroIntro({
         show: { opacity: 1, y: 0, transition: { duration: 0.45, ease: [0.22, 1, 0.36, 1] as const } },
       };
 
+  /**
+   * <h1> adalah elemen terbesar di halaman, jadi ia yang menentukan LCP.
+   * Memulainya dari opacity 0 berarti opacity:0 ikut ter-render di HTML server
+   * dan judulnya baru terlihat setelah React selesai hidrasi. Terukur menahan
+   * LCP di 2.2s padahal TTFB hanya 20ms.
+   *
+   * Karena itu judul hanya digeser, tidak difade: teksnya sudah terlihat pada
+   * cat pertama, dan transform tidak memengaruhi layout sehingga CLS tetap 0.
+   * Elemen lain di hero jauh lebih kecil dan tidak pernah jadi kandidat LCP,
+   * jadi fade-nya dipertahankan.
+   */
+  const heading = reduceMotion
+    ? { hidden: { y: 0 }, show: { y: 0 } }
+    : {
+        hidden: { y: 12 },
+        show: { y: 0, transition: { duration: 0.45, ease: [0.22, 1, 0.36, 1] as const } },
+      };
+
   return (
     <motion.div variants={container} initial="hidden" animate="show" className="min-w-0 max-w-xl">
       {greeting ? (
@@ -42,7 +60,7 @@ export default function HeroIntro({
         </motion.p>
       ) : null}
 
-      <motion.h1 variants={item} className="text-3xl font-semibold break-words sm:text-4xl md:text-5xl lg:text-6xl">
+      <motion.h1 variants={heading} className="text-3xl font-semibold break-words sm:text-4xl md:text-5xl lg:text-6xl">
         {name}
       </motion.h1>
 

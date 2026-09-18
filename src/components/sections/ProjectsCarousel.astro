@@ -19,12 +19,17 @@ interface Props {
 const { projects } = Astro.props;
 ---
 
-<div class="relative" data-carousel>
+{/*
+  role="group" ada di pembungkus luar, bukan di <ul>. Menaruhnya di <ul> akan
+  menimpa peran implisit `list`, dan setiap <li> di dalamnya langsung kehilangan
+  induk listnya sehingga pembaca layar tidak lagi mengumumkan "daftar, 3 item".
+  Itu pelanggaran aturan axe `listitem`.
+*/}
+<div class="relative" data-carousel role="group" aria-label="Carousel proyek">
   <ul
     class="carousel-track"
     data-carousel-track
     tabindex="0"
-    role="group"
     aria-label="Daftar proyek, geser untuk melihat lainnya"
   >
     {
