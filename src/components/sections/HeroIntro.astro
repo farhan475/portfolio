@@ -119,12 +119,19 @@ const { greeting, name, role, description, ctaPrimary, ctaSecondary } = Astro.pr
   /*
    * Aturan global memangkas animation-duration jadi 0.01ms, tapi TIDAK
    * memangkas animation-delay. Tanpa blok ini, pengguna yang meminta
-   * pengurangan gerak justru menatap teks tak terlihat selama 0,37 detik.
-   * Mematikan animation-name membuat elemen langsung tampil apa adanya.
+   * pengurangan gerak justru menatap teks tak terlihat selama 0,37 detik,
+   * karena animation-fill-mode: both menahan keadaan `from`.
+   *
+   * Selektornya harus menyebut kelas yang sama, bukan `> *`. Media query
+   * tidak menambah spesifisitas, jadi `.hero-intro > *` (satu kelas) kalah
+   * melawan `.hero-intro > .hero-rise` (dua kelas) dan overridenya diam-diam
+   * tidak berlaku. Sudah terjadi sekali; jangan disederhanakan lagi.
    */
   @media (prefers-reduced-motion: reduce) {
-    .hero-intro > * {
+    .hero-intro > .hero-fade,
+    .hero-intro > .hero-rise {
       animation-name: none;
+      animation-delay: 0s;
     }
   }
 </style>
