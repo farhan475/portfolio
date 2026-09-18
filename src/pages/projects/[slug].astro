@@ -25,7 +25,14 @@ if (!project) {
   return Astro.rewrite('/404');
 }
 
-Astro.response.headers.set('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=86400');
+// Nilai ini ditetapkan CLAUDE.md. Sempat diperlebar ke s-maxage=300 +
+// stale-while-revalidate=86400 lalu dikembalikan atas permintaan. Catatan
+// pengukuran supaya angkanya tidak perlu dicari ulang: TTFB 75-90ms saat
+// cache kena, 1.2s saat MISS, dan pernah 6.5s saat cold start, karena tiap
+// halaman di-SSR dengan enam query Supabase. Jendela ini hanya menutup enam
+// menit, jadi MISS relatif sering dan itulah yang terukur kalau situs diaudit
+// pada saat cache sedang kosong.
+Astro.response.headers.set('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300');
 
 const body = await renderMarkdown(project.content);
 ---
